@@ -1,0 +1,11 @@
+openai
+pinecone-client
+langchain
+supabase
+fastapi
+python-dotenv
+sqlalchemy
+requests
+httpx
+uvicorn
+pydantic

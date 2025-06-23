@@ -1,12 +1,59 @@
 # 📞 AI Sales Call Evaluator for Closers
 
-An AI-powered system that evaluates sales call transcripts from closers. The system analyzes transcripts using GPT, identifies strengths and weaknesses, and provides structured feedback to improve closing performance.
+## Overview
+This project analyzes sales call transcripts using AI (OpenAI GPT-4), scores closers on key criteria, extracts insights, and stores results in a cloud database for reporting and improvement tracking.
+
+## Features
+- Automatic transcript analysis and scoring
+- Key insight extraction (questions, objections, sentiment)
+- Structured, actionable feedback
+- Historical performance tracking
+- Supabase integration for data storage
+- Ready for automation (n8n/Make.com)
+
+## Setup
+1. Clone the repo
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Copy `.env.example` to `.env` and fill in your API keys
+4. Run the main script or use the API endpoints
+
+## Directory Structure
+- `main.py`: Entry point
+- `langchain/`: Core AI logic
+- `db/`: Database models and utils
+- `data/`: Sample data
+- `embeddings/`: Embedding logic
+- `sample_transcripts/`: Example transcripts
+- `make-workflows/`: Automation scripts
+
+## Usage
+- Place transcripts in `sample_transcripts/` for testing
+- Run analysis via `main.py` or API
+- Results are stored in Supabase
+
+## API Keys
+See `.env.example` for required environment variables.
+
+## Roadmap
+- [x] Transcript Analyzer
+- [x] AI Scoring Engine
+- [x] Insight Extractor
+- [x] Database + Schema
+- [ ] Closer Performance Dashboard (separate project)
+- [ ] Automation Workflow (n8n/Make)
+- [x] Setup Guide & Documentation
+
+---
+For more details, see the project plan in the repo.
 
 ---
 
 ## 📌 Features
 
-- 📊 Grades sales calls based on:
+- �� Grades sales calls based on:
   - Rapport-building
   - Discovery
   - Objection handling
