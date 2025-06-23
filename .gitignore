@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.env
+*.sqlite3
+
+# Environments
+.venv/
+venv/
+env/
+
+# VSCode & IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Mac & system
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Logs
+*.log
+
+# LangChain / FAISS
+data/good_calls/
+embeddings/
+index/
+*.faiss
+*.pkl
+
+# Output / generated
+*.json
+*.csv
+output/
+results/
+*.bak
+
+# Backup
+*~
+*.tmp
+*.swp
+
+# GitHub credentials
+openai_key.txt
+openai_config.json
+
+# Node (if front-end later)
+node_modules/
+dist/
+build/
