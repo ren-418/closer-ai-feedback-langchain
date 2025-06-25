@@ -9,9 +9,7 @@ import re
 pinecone_manager = PineconeManager()
 
 MODEL_NAME = "text-embedding-3-large"
-# OpenAI's text-embedding-3-large can handle about 8191 tokens
-# We'll use character count as a proxy - assuming average 4 chars per token
-# So we'll chunk at 32000 characters to be safe (8191 * 4)
+
 MAX_CHUNK_LENGTH = 3000
 CHUNK_OVERLAP = 300
 
@@ -78,14 +76,14 @@ def embed_all_good_calls():
             print(f"Split into {total_chunks} chunks")
             
             metadata_base = extract_metadata_from_filename(file_path)
-            metadata_base['file_id'] = file_id  # Add file_id to base metadata
+            metadata_base['file_id'] = file_id  
             for idx, chunk in enumerate(chunks):
                 metadata = metadata_base.copy()
                 metadata['transcript'] = chunk
                 metadata['chunk_number'] = idx + 1
                 metadata['total_chunks'] = total_chunks
                 metadata['chunk_length'] = len(chunk)
-                metadata['file_id'] = file_id  # Ensure file_id is present
+                metadata['file_id'] = file_id  
                 
                 # Make vector_id unique per chunk
                 vector_id = f"{file_id}_chunk{idx+1}"

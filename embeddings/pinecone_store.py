@@ -7,15 +7,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize OpenAI client
+
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
-# Pinecone environment variables
+
 PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 PINECONE_CLOUD = os.getenv('PINECONE_CLOUD', 'aws')
 PINECONE_REGION = os.getenv('PINECONE_REGION', 'us-east-1')
 
-# Initialize Pinecone client
+
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
 class PineconeManager:
@@ -26,7 +26,7 @@ class PineconeManager:
         if index_name not in pc.list_indexes().names():
             pc.create_index(
                 name=index_name,
-                dimension=3072,  # OpenAI text-embedding-3-large dimension
+                dimension=3072,
                 metric="cosine",
                 spec=ServerlessSpec(
                     cloud=PINECONE_CLOUD,
