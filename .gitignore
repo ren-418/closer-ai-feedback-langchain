@@ -30,7 +30,6 @@ Thumbs.db
 
 # LangChain / FAISS
 data/good_calls/
-embeddings/
 index/
 *.faiss
 *.pkl
