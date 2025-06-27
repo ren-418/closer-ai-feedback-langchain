@@ -47,10 +47,7 @@ class SalesCallEvaluator:
             final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses])
             print("[Evaluator] Evaluation complete.")
             return {
-                'transcript_analysis': {
-                    'sections': parsed,
-                    'speaker_stats': parsed.get('metadata', {})
-                },
+               
                 'chunk_analyses': chunk_analyses,
                 'final_analysis': final_analysis,
                 'metadata': {
