@@ -13,7 +13,10 @@ pinecone_manager = PineconeManager()
 
 MAX_CHUNK_TOKENS = 3000
 CHUNK_OVERLAP_TOKENS = 300
-CONTEXT_WINDOW_TOKENS = 500  # Number of tokens before/after to include as context
+CONTEXT_WINDOW_TOKENS = 300  # Reduced for safety
+MAX_REF_CHUNKS = 2
+MAX_REF_TOKENS = 500
+MAX_TOTAL_PROMPT_TOKENS = 8000
 
 # Use OpenAI's tiktoken for accurate token counting
 encoding = tiktoken.encoding_for_model("gpt-4")
@@ -53,6 +56,12 @@ def get_context_window(chunks: List[List[int]], idx: int, context_window: int = 
         'prev': prev_context,
         'next': next_context
     }
+
+def truncate_reference_chunk(text: str, max_tokens: int = MAX_REF_TOKENS) -> str:
+    tokens = encoding.encode(text)
+    if len(tokens) > max_tokens:
+        tokens = tokens[:max_tokens]
+    return encoding.decode(tokens)
 
 def embed_new_transcript(transcript_text: str) -> List[Dict]:
     """
@@ -94,8 +103,9 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         f"{context_next}\n\n" if context_next else ""
         "REFERENCE EXAMPLES FROM GOOD CALLS:\n"
     )
-    for i, ref in enumerate(reference_texts, 1):
-        prompt += f"\nExample {i}:\n```\n{ref['metadata']['transcript']}\n```\n"
+    for i, ref in enumerate(reference_texts[:MAX_REF_CHUNKS], 1):
+        ref_text = truncate_reference_chunk(ref['metadata']['transcript'], MAX_REF_TOKENS)
+        prompt += f"\nExample {i}:\n```\n{ref_text}\n```\n"
     prompt += (
         "\nProvide a detailed analysis in JSON format with the following structure:\n"
         "{\n"
@@ -120,6 +130,13 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
     Analyze a chunk using RAG with reference examples from good calls and context window.
     """
     prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
+    # Ensure prompt is within model context window
+    prompt_tokens = len(encoding.encode(prompt))
+    if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
+        # Truncate context windows if needed
+        context_prev = truncate_reference_chunk(context_prev, 100)
+        context_next = truncate_reference_chunk(context_next, 100)
+        prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
     response = openai_client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
