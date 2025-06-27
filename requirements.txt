@@ -10,3 +10,4 @@ httpx
 uvicorn
 pydantic
 python-multipart
+tiktoken

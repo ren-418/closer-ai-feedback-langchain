@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from openai import OpenAI
 import json
 from embeddings.pinecone_store import PineconeManager
+import tiktoken
 
 # Initialize OpenAI client
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -10,55 +11,91 @@ openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 # Initialize Pinecone manager
 pinecone_manager = PineconeManager()
 
-MAX_CHUNK_LENGTH = 3000
-CHUNK_OVERLAP = 300
+MAX_CHUNK_TOKENS = 3000
+CHUNK_OVERLAP_TOKENS = 300
+CONTEXT_WINDOW_TOKENS = 500  # Number of tokens before/after to include as context
 
-def chunk_text(text: str, max_length: int = MAX_CHUNK_LENGTH, overlap: int = CHUNK_OVERLAP) -> List[str]:
-    """Split text into overlapping chunks of max_length chars, with specified overlap."""
+# Use OpenAI's tiktoken for accurate token counting
+encoding = tiktoken.encoding_for_model("gpt-4")
+
+def chunk_text_by_tokens(text: str, max_tokens: int = MAX_CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP_TOKENS) -> List[List[int]]:
+    """
+    Split text into overlapping chunks of max_tokens tokens, with specified overlap.
+    Returns a list of token lists (not decoded yet).
+    """
+    tokens = encoding.encode(text)
     chunks = []
     start = 0
-    text_length = len(text)
+    text_length = len(tokens)
     while start < text_length:
-        end = min(start + max_length, text_length)
-        chunk = text[start:end]
-        chunks.append(chunk)
+        end = min(start + max_tokens, text_length)
+        chunk_tokens = tokens[start:end]
+        chunks.append(chunk_tokens)
         if end == text_length:
             break
-        start += max_length - overlap
+        start += max_tokens - overlap
+    print(f"[Chunking] Split transcript into {len(chunks)} chunks (max {max_tokens} tokens, overlap {overlap})")
     return chunks
+
+def get_context_window(chunks: List[List[int]], idx: int, context_window: int = CONTEXT_WINDOW_TOKENS) -> Dict[str, str]:
+    """
+    For a given chunk index, return the decoded previous and next context windows (if available).
+    """
+    prev_context = []
+    next_context = []
+    if idx > 0:
+        prev_tokens = chunks[idx-1][-context_window:]
+        prev_context = encoding.decode(prev_tokens)
+    if idx < len(chunks) - 1:
+        next_tokens = chunks[idx+1][:context_window]
+        next_context = encoding.decode(next_tokens)
+    return {
+        'prev': prev_context,
+        'next': next_context
+    }
 
 def embed_new_transcript(transcript_text: str) -> List[Dict]:
     """
-    Splits the transcript into overlapping chunks, generates embeddings for each chunk,
-    and returns a list of dicts with chunk_text, embedding, chunk_number, total_chunks, and chunk_length.
+    Splits the transcript into overlapping token-based chunks, generates embeddings for each chunk,
+    and returns a list of dicts with chunk_text, embedding, chunk_number, total_chunks, chunk_length, and context windows.
     """
-    chunks = chunk_text(transcript_text)
-    total_chunks = len(chunks)
+    chunk_token_lists = chunk_text_by_tokens(transcript_text)
+    total_chunks = len(chunk_token_lists)
     results = []
-    
-    for idx, chunk in enumerate(chunks):
+    print(f"[Embedding] Generating embeddings for {total_chunks} chunks...")
+    for idx, chunk_tokens in enumerate(chunk_token_lists):
+        chunk = encoding.decode(chunk_tokens)
+        context = get_context_window(chunk_token_lists, idx)
         embedding = pinecone_manager.generate_embedding(chunk)
         results.append({
             'chunk_text': chunk,
             'embedding': embedding,
             'chunk_number': idx + 1,
             'total_chunks': total_chunks,
-            'chunk_length': len(chunk)
+            'chunk_length': len(chunk),
+            'context_prev': context['prev'],
+            'context_next': context['next']
         })
+        if (idx + 1) % 10 == 0 or (idx + 1) == total_chunks:
+            print(f"[Embedding] Processed {idx + 1}/{total_chunks} chunks")
     return results
 
-def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict]) -> str:
-    """Build a prompt for analyzing a chunk with reference examples."""
+def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '') -> str:
+    """
+    Build a prompt for analyzing a chunk with reference examples and context window.
+    """
     prompt = (
         "You are an expert sales call evaluator. Analyze this sales call chunk compared to reference examples.\n\n"
+        "PREVIOUS CONTEXT:\n"
+        f"{context_prev}\n\n" if context_prev else ""
         "CURRENT CHUNK:\n"
         f"```\n{chunk_text}\n```\n\n"
+        "NEXT CONTEXT:\n"
+        f"{context_next}\n\n" if context_next else ""
         "REFERENCE EXAMPLES FROM GOOD CALLS:\n"
     )
-    
     for i, ref in enumerate(reference_texts, 1):
         prompt += f"\nExample {i}:\n```\n{ref['metadata']['transcript']}\n```\n"
-    
     prompt += (
         "\nProvide a detailed analysis in JSON format with the following structure:\n"
         "{\n"
@@ -78,17 +115,17 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict]) ->
     )
     return prompt
 
-def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], temperature: float = 0.3) -> Dict:
-    """Analyze a chunk using RAG with reference examples from good calls."""
-    prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks)
-    
+def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3) -> Dict:
+    """
+    Analyze a chunk using RAG with reference examples from good calls and context window.
+    """
+    prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
     response = openai_client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
         max_tokens=1000
     )
-    
     try:
         return json.loads(response.choices[0].message.content)
     except json.JSONDecodeError:
@@ -163,7 +200,9 @@ if __name__ == "__main__":
         # Analyze the chunk
         analysis = analyze_chunk_with_rag(
             chunk_data['chunk_text'],
-            similar_chunks
+            similar_chunks,
+            chunk_data['context_prev'],
+            chunk_data['context_next']
         )
         print("\nChunk Analysis:")
         print(json.dumps(analysis, indent=2)) 

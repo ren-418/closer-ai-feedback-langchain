@@ -3,7 +3,8 @@
 import os
 from dotenv import load_dotenv
 import json
-from langchain.evaluator import evaluate_transcript_with_rag
+import sys
+from langchain_script.evaluator import SalesCallEvaluator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,45 +33,53 @@ def format_report(report):
         print(report["raw_response"])
         return
 
-    print("Overall Score:", report.get("score", "N/A"))
-    print("Letter Grade:", report.get("letter_grade", "N/A"))
+    final = report.get("final_analysis", {})
+    print("Overall Score:", final.get("overall_score", "N/A"))
+    print("Letter Grade:", final.get("letter_grade", "N/A"))
     print("\nStrengths:")
-    for strength in report.get("strengths", []):
+    for strength in final.get("key_strengths", []):
         print(f"- {strength}")
     
     print("\nWeaknesses:")
-    for weakness in report.get("weaknesses", []):
+    for weakness in final.get("key_weaknesses", []):
         print(f"- {weakness}")
     
     print("\nSuggestions:")
-    for suggestion in report.get("suggestions", []):
+    for suggestion in final.get("actionable_suggestions", []):
         print(f"- {suggestion}")
     
-    if "summary" in report:
+    if "summary" in final:
         print("\nSummary:")
-        print(report["summary"])
+        print(final["summary"])
 
 def main():
     try:
         # Check environment variables
         check_environment()
         
-        # Sample transcript for testing
-        # In production, you would load this from a file or API
-        sample_transcript = """
-        Sales Rep: Hi there! Thanks for taking the time to chat with me today about our sales automation platform. Could you tell me a bit about your current sales process and what challenges you're facing?
+        evaluator = SalesCallEvaluator()
+        # Support loading transcript from file via CLI
+        if len(sys.argv) > 1:
+            transcript_path = sys.argv[1]
+            print(f"[Main] Loading transcript from file: {transcript_path}")
+            with open(transcript_path, 'r', encoding='utf-8') as f:
+                transcript = f.read()
+        else:
+            print("[Main] No file provided. Using sample transcript.")
+            transcript = """
+            Sales Rep: Hi there! Thanks for taking the time to chat with me today about our sales automation platform. Could you tell me a bit about your current sales process and what challenges you're facing?
 
-        Prospect: Well, we're a growing company and our sales team is struggling to keep up with leads. We're using a basic CRM but it's not really helping us automate anything.
+            Prospect: Well, we're a growing company and our sales team is struggling to keep up with leads. We're using a basic CRM but it's not really helping us automate anything.
 
-        Sales Rep: I understand completely. Managing leads manually can be overwhelming, especially as you grow. Our platform actually helped similar companies increase their lead processing capacity by 3x while reducing manual work. Would you be interested in seeing a quick demo of how we do that?
+            Sales Rep: I understand completely. Managing leads manually can be overwhelming, especially as you grow. Our platform actually helped similar companies increase their lead processing capacity by 3x while reducing manual work. Would you be interested in seeing a quick demo of how we do that?
 
-        Prospect: Yes, that would be helpful. We definitely need to improve our efficiency.
-        """
+            Prospect: Yes, that would be helpful. We definitely need to improve our efficiency.
+            """
         
         print("AI Sales Call Evaluator - Processing transcript...")
         
         # Run the RAG evaluation pipeline
-        report = evaluate_transcript_with_rag(sample_transcript)
+        report = evaluator.evaluate_transcript(transcript)
         
         # Format and display the results
         format_report(report)
