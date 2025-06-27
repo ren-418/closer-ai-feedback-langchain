@@ -107,7 +107,17 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         ref_text = truncate_reference_chunk(ref['metadata']['transcript'], MAX_REF_TOKENS)
         prompt += f"\nExample {i}:\n```\n{ref_text}\n```\n"
     prompt += (
-        "\nProvide a detailed analysis in JSON format with the following structure:\n"
+        "\nFor this chunk, do the following:\n"
+        "- Pull out any questions the lead asks (list them).\n"
+        "- Pull out any objections that came up (list them).\n"
+        "- Grade and comment on how well the closer handled objections (be specific).\n"
+        "- Grade and comment on engagement with the lead, addressing concerns, and whether payment options were discussed.\n"
+        "- Provide coaching-oriented feedback.\n"
+        "- Focus on what the closer is doing well, how effectively they are handling objections, and where they can improve.\n"
+        "- Provide feedback in a structured way that includes strengths, weaknesses, and actionable solutions for better closing performance.\n"
+        "- Grade the chunk on a scale of 1-100 and as an A/B/C letter grade.\n"
+        "- Include key sales metrics: rapport-building, discovery, objection handling, pitch delivery, closing effectiveness.\n"
+        "\nRespond in JSON format with the following structure:\n"
         "{\n"
         '  "strengths": ["strength1", "strength2", ...],\n'
         '  "weaknesses": ["weakness1", "weakness2", ...],\n'
@@ -120,7 +130,9 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '    "objection_handling": 1-10,\n'
         '    "pitch_delivery": 1-10,\n'
         '    "closing_effectiveness": 1-10\n'
-        '  }\n'
+        '  },\n'
+        '  "lead_questions": ["question1", ...],\n'
+        '  "objections": ["objection1", ...]\n'
         "}"
     )
     return prompt
@@ -161,7 +173,17 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         "provide a comprehensive evaluation of the entire sales call.\n\n"
         "CHUNK ANALYSES:\n"
         f"{json.dumps(chunk_analyses, indent=2)}\n\n"
-        "Provide a final report in JSON format with:\n"
+        "For the entire call, do the following:\n"
+        "- Summarize all questions the lead asked (list them).\n"
+        "- Summarize all objections that came up (list them).\n"
+        "- Focus on objection handling: how well did the closer handle objections, and where can they improve?\n"
+        "- Grade and comment on engagement, addressing concerns, and payment options.\n"
+        "- Provide coaching-oriented feedback.\n"
+        "- Focus on what the closer is doing well, how effectively they are handling objections, and where they can improve.\n"
+        "- Provide feedback in a structured way that includes strengths, weaknesses, and actionable solutions for better closing performance.\n"
+        "- Grade the overall call on a scale of 1-100 and as an A/B/C letter grade.\n"
+        "- Include key sales metrics: rapport-building, discovery, objection handling, pitch delivery, closing effectiveness.\n"
+        "\nRespond in JSON format with the following structure:\n"
         "{\n"
         '  "overall_score": 0-100,\n'
         '  "letter_grade": "A/B/C",\n'
@@ -175,17 +197,17 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         '    "pitch_delivery": 1-10,\n'
         '    "closing_effectiveness": 1-10\n'
         '  },\n'
+        '  "lead_questions": ["question1", ...],\n'
+        '  "objections": ["objection1", ...],\n'
         '  "summary": "Detailed summary of the overall performance..."\n'
         "}"
     )
-    
     response = openai_client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
         max_tokens=1500
     )
-    
     try:
         return json.loads(response.choices[0].message.content)
     except json.JSONDecodeError:
