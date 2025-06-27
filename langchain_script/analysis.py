@@ -74,7 +74,9 @@ def embed_new_transcript(transcript_text: str) -> List[Dict]:
     print(f"[Embedding] Generating embeddings for {total_chunks} chunks...")
     for idx, chunk_tokens in enumerate(chunk_token_lists):
         chunk = encoding.decode(chunk_tokens)
+        print("embed each chunk ::", chunk)
         context = get_context_window(chunk_token_lists, idx)
+        print("context :::", context)
         embedding = pinecone_manager.generate_embedding(chunk)
         results.append({
             'chunk_text': chunk,

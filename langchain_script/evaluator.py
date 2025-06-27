@@ -23,8 +23,10 @@ class SalesCallEvaluator:
         try:
             print("[Evaluator] Parsing transcript into sections...")
             parsed = parse_transcript(transcript)
+            print("Parsedtrascript", parsed)
             print("[Evaluator] Chunking and embedding transcript...")
             chunks_data = embed_new_transcript(transcript)
+            print("chunks_data ::::", chunks_data)
             total_chunks = len(chunks_data)
             print(f"[Evaluator] {total_chunks} chunks to analyze.")
             chunk_analyses = []
@@ -34,10 +36,12 @@ class SalesCallEvaluator:
                     chunk_data['chunk_text'],
                     top_k=top_k
                 )
+                print("similar_chunks :::", similar_chunks)
                 analysis = analyze_chunk_with_rag(
                     chunk_data['chunk_text'],
                     similar_chunks
                 )
+                print("evaluate analysisi", analysis)
                 chunk_analyses.append({
                     'chunk_number': chunk_data['chunk_number'],
                     'total_chunks': chunk_data['total_chunks'],

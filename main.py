@@ -48,6 +48,9 @@ def format_report(report):
     for suggestion in final.get("actionable_suggestions", []):
         print(f"- {suggestion}")
     
+    print("\nKey mertrics:",final.get("key_metrics", "N/A"))
+
+
     if "summary" in final:
         print("\nSummary:")
         print(final["summary"])
