@@ -56,20 +56,18 @@ def embed_all_good_calls():
     """Read all cleaned transcripts and store them in Pinecone, chunking by characters if needed."""
     good_calls_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
                                  'data', 'good_calls')
-    # Get all txt files
+    
     txt_files = glob.glob(os.path.join(good_calls_dir, '*.txt'))
     print(f"Found {len(txt_files)} transcripts to process...")
     
     for file_path in txt_files:
         try:
-            # Read transcript
+            
             with open(file_path, 'r', encoding='utf-8') as f:
                 transcript = f.read()
             
-            # Get file_id for all chunks from this file
-            file_id = sanitize_filename(file_path)
             
-            # Get chunks using overlapping character-based chunking
+            file_id = sanitize_filename(file_path)
             chunks = chunk_text(transcript)
             total_chunks = len(chunks)
             print(f"\nProcessing {os.path.basename(file_path)}")
@@ -85,7 +83,7 @@ def embed_all_good_calls():
                 metadata['chunk_length'] = len(chunk)
                 metadata['file_id'] = file_id  
                 
-                # Make vector_id unique per chunk
+                
                 vector_id = f"{file_id}_chunk{idx+1}"
                 pinecone_manager.store_transcript(chunk, {**metadata, 'filename': vector_id})
                 print(f"✓ Stored chunk {idx+1}/{total_chunks} (length: {len(chunk)} chars)")
@@ -96,7 +94,7 @@ def embed_all_good_calls():
     # Print index statistics
     stats = pinecone_manager.get_index_stats()
     print("\nPinecone Index Statistics:")
-    print(json.dumps(stats, indent=2))
+    print(stats)
 
 if __name__ == '__main__':
     print("Starting to embed good calls...")
