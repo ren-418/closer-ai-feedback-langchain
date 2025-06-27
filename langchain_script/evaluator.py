@@ -23,7 +23,6 @@ class SalesCallEvaluator:
         try:
             print("[Evaluator] Parsing transcript into sections...")
             # parsed = parse_transcript(transcript)
-            print("Parsedtrascript", parsed)
             print("[Evaluator] Chunking and embedding transcript...")
             chunks_data = embed_new_transcript(transcript)
             total_chunks = len(chunks_data)
