@@ -18,7 +18,7 @@ CONTEXT_WINDOW_TOKENS = 300  # Reduced for safety
 MAX_REF_CHUNKS = 3  # Increased for better comparison
 MAX_REF_TOKENS = 600  # Increased for more context
 MAX_TOTAL_PROMPT_TOKENS = 8000
-MAX_RESPONSE_TOKENS = 1500  # Response token limit for GPT-4
+MAX_RESPONSE_TOKENS = 2500  # Increased for longer aggregation responses
 
 # Use OpenAI's tiktoken for accurate token counting
 encoding = tiktoken.encoding_for_model("gpt-4")
