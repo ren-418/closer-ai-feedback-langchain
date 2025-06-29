@@ -25,35 +25,114 @@ def check_environment():
         )
 
 def format_report(report):
-    """Format the analysis report for console output."""
-    print("\n=== Sales Call Analysis Report ===\n")
+    """Format the enhanced analysis report for console output."""
+    print("\n" + "="*60)
+    print("           AI SALES CALL EVALUATION REPORT")
+    print("="*60)
     
-    if "raw_response" in report:
-        print("Raw LLM Response:")
-        print(report["raw_response"])
+    if report.get('status') == 'failed':
+        print(f"❌ Evaluation Failed: {report.get('error', 'Unknown error')}")
         return
 
-    final = report.get("final_analysis", {})
-    print("Overall Score:", final.get("overall_score", "N/A"))
-    print("Letter Grade:", final.get("letter_grade", "N/A"))
-    print("\nStrengths:")
-    for strength in final.get("key_strengths", []):
-        print(f"- {strength}")
+    # Display metadata
+    metadata = report.get('metadata', {})
+    print(f"\n📊 ANALYSIS METADATA:")
+    print(f"   • Total chunks analyzed: {metadata.get('total_chunks', 'N/A')}")
+    print(f"   • Reference files used: {metadata.get('total_reference_files_used', 'N/A')}")
+    print(f"   • Evaluation timestamp: {metadata.get('evaluation_timestamp', 'N/A')}")
+    print(f"   • Estimated call duration: {metadata.get('estimated_call_duration', 'N/A')}")
     
-    print("\nWeaknesses:")
-    for weakness in final.get("key_weaknesses", []):
-        print(f"- {weakness}")
+    # Display reference files
+    if metadata.get('reference_files'):
+        print(f"\n📁 REFERENCE FILES USED:")
+        for i, ref_file in enumerate(metadata['reference_files'], 1):
+            print(f"   {i}. {ref_file}")
     
-    print("\nSuggestions:")
-    for suggestion in final.get("actionable_suggestions", []):
-        print(f"- {suggestion}")
+    # Display executive summary
+    final = report.get('final_analysis', {})
+    executive = final.get('executive_summary', {})
     
-    print("\nKey mertrics:",final.get("key_metrics", "N/A"))
-
-
-    if "summary" in final:
-        print("\nSummary:")
-        print(final["summary"])
+    print(f"\n🏆 EXECUTIVE SUMMARY:")
+    print(f"   • Overall Score: {executive.get('overall_score', 'N/A')}/100")
+    print(f"   • Letter Grade: {executive.get('letter_grade', 'N/A')}")
+    print(f"   • Assessment: {executive.get('overall_assessment', 'N/A')}")
+    
+    # Display key highlights and critical areas
+    if executive.get('key_highlights'):
+        print(f"\n✨ KEY HIGHLIGHTS:")
+        for highlight in executive['key_highlights']:
+            print(f"   • {highlight}")
+    
+    if executive.get('critical_areas'):
+        print(f"\n⚠️  CRITICAL AREAS:")
+        for area in executive['critical_areas']:
+            print(f"   • {area}")
+    
+    # Display detailed analysis
+    detailed = final.get('detailed_analysis', {})
+    if detailed:
+        print(f"\n📈 DETAILED PERFORMANCE ANALYSIS:")
+        
+        for category, data in detailed.items():
+            if isinstance(data, dict) and 'score' in data:
+                category_name = category.replace('_', ' ').title()
+                score = data.get('score', 'N/A')
+                print(f"\n   {category_name}: {score}/10")
+                
+                if data.get('strengths'):
+                    print(f"     Strengths:")
+                    for strength in data['strengths']:
+                        print(f"       • {strength}")
+                
+                if data.get('weaknesses'):
+                    print(f"     Areas for Improvement:")
+                    for weakness in data['weaknesses']:
+                        print(f"       • {weakness}")
+    
+    # Display coaching recommendations
+    coaching = final.get('coaching_recommendations', [])
+    if coaching:
+        print(f"\n🎯 COACHING RECOMMENDATIONS:")
+        for i, rec in enumerate(coaching, 1):
+            priority = rec.get('priority', 'medium').upper()
+            category = rec.get('category', 'general').replace('_', ' ').title()
+            recommendation = rec.get('recommendation', 'N/A')
+            
+            print(f"\n   {i}. [{priority} PRIORITY] {category}")
+            print(f"      💡 {recommendation}")
+            
+            if rec.get('reference_example'):
+                print(f"      📚 Reference: {rec['reference_example']}")
+            
+            if rec.get('expected_impact'):
+                print(f"      🎯 Expected Impact: {rec['expected_impact']}")
+    
+    # Display lead interaction summary
+    lead_summary = final.get('lead_interaction_summary', {})
+    if lead_summary:
+        print(f"\n👥 LEAD INTERACTION SUMMARY:")
+        print(f"   • Total questions asked: {lead_summary.get('total_questions_asked', 'N/A')}")
+        print(f"   • Total objections raised: {lead_summary.get('total_objections_raised', 'N/A')}")
+        print(f"   • Engagement pattern: {lead_summary.get('engagement_pattern', 'N/A')}")
+        
+        if lead_summary.get('buying_signals'):
+            print(f"   • Buying signals detected: {', '.join(lead_summary['buying_signals'])}")
+        
+        if lead_summary.get('concerns_expressed'):
+            print(f"   • Concerns expressed: {', '.join(lead_summary['concerns_expressed'])}")
+    
+    # Display performance metrics
+    metrics = final.get('performance_metrics', {})
+    if metrics:
+        print(f"\n📊 PERFORMANCE METRICS:")
+        for metric, score in metrics.items():
+            if isinstance(score, (int, float)):
+                metric_name = metric.replace('_', ' ').title()
+                print(f"   • {metric_name}: {score}/10")
+    
+    print(f"\n" + "="*60)
+    print("           END OF REPORT")
+    print("="*60)
 
 def main():
     try:
@@ -61,6 +140,7 @@ def main():
         check_environment()
         
         evaluator = SalesCallEvaluator()
+        
         # Support loading transcript from file via CLI
         if len(sys.argv) > 1:
             transcript_path = sys.argv[1]
@@ -79,23 +159,24 @@ def main():
             Prospect: Yes, that would be helpful. We definitely need to improve our efficiency.
             """
         
-        print("AI Sales Call Evaluator - Processing transcript...")
+        print("🤖 AI Sales Call Evaluator - Processing transcript...")
+        print(f"📝 Transcript length: {len(transcript)} characters")
         
-        # Run the RAG evaluation pipeline
+        # Run the enhanced RAG evaluation pipeline
         report = evaluator.evaluate_transcript(transcript)
         
         # Format and display the results
         format_report(report)
         
-        # Optionally save the report
+        # Save the detailed report
         with open('latest_analysis.json', 'w') as f:
             json.dump(report, f, indent=2)
-            print("\nFull report saved to latest_analysis.json")
+            print(f"\n💾 Full detailed report saved to latest_analysis.json")
             
     except EnvironmentError as e:
-        print(f"Environment Error: {e}")
+        print(f"❌ Environment Error: {e}")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
         raise
 
 if __name__ == "__main__":

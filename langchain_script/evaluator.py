@@ -4,8 +4,8 @@ from typing import Dict, Optional
 import json
 from openai import OpenAI
 import os
+from datetime import datetime
 from .analysis import embed_new_transcript, analyze_chunk_with_rag, aggregate_chunk_analyses
-from .transcript_parser import parse_transcript
 from embeddings.pinecone_store import PineconeManager
 
 class SalesCallEvaluator:
@@ -17,49 +17,90 @@ class SalesCallEvaluator:
     def evaluate_transcript(self, transcript: str, top_k: int = 3) -> Dict:
         """
         Evaluate a sales call transcript using RAG and structured analysis.
-        Returns a comprehensive evaluation report.
+        Returns a comprehensive evaluation report with reference file tracking.
         Handles large transcripts by chunking and progress reporting.
         """
         try:
-            print("[Evaluator] Parsing transcript into sections...")
-            # parsed = parse_transcript(transcript)
+            print("[Evaluator] Starting transcript evaluation...")
+            print(f"[Evaluator] Transcript length: {len(transcript)} characters")
+            
+            # Chunk and embed the transcript
             print("[Evaluator] Chunking and embedding transcript...")
             chunks_data = embed_new_transcript(transcript)
             total_chunks = len(chunks_data)
             print(f"[Evaluator] {total_chunks} chunks to analyze.")
+            
+            # Analyze each chunk
             chunk_analyses = []
+            all_reference_files = set()
+            
             for idx, chunk_data in enumerate(chunks_data):
                 print(f"[Evaluator] Analyzing chunk {idx+1}/{total_chunks}...")
+                
+                # Find similar chunks from good calls
                 similar_chunks = self.pinecone_manager.find_similar_calls(
                     chunk_data['chunk_text'],
                     top_k=top_k
                 )
+                
+                # Analyze the chunk with enhanced analysis
                 analysis = analyze_chunk_with_rag(
                     chunk_data['chunk_text'],
-                    similar_chunks
+                    similar_chunks,
+                    chunk_data['context_prev'],
+                    chunk_data['context_next']
                 )
+                
+                # Track reference files used
+                if 'analysis_metadata' in analysis and 'reference_files_used' in analysis['analysis_metadata']:
+                    for ref in analysis['analysis_metadata']['reference_files_used']:
+                        all_reference_files.add(f"{ref['filename']} ({ref['closer_name']})")
+                
                 chunk_analyses.append({
                     'chunk_number': chunk_data['chunk_number'],
                     'total_chunks': chunk_data['total_chunks'],
+                    'chunk_text_preview': chunk_data['chunk_text'][:200] + "..." if len(chunk_data['chunk_text']) > 200 else chunk_data['chunk_text'],
                     'analysis': analysis
                 })
+            
+            # Aggregate all chunk analyses into final report
             print("[Evaluator] Aggregating chunk analyses into final report...")
             final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses])
+            
             print("[Evaluator] Evaluation complete.")
+            
+            # Enhanced metadata with reference tracking
+            metadata = {
+                'total_chunks': total_chunks,
+                'references_per_chunk': top_k,
+                'total_reference_files_used': len(all_reference_files),
+                'reference_files': list(all_reference_files),
+                'evaluation_timestamp': datetime.now().isoformat(),
+                'transcript_length': len(transcript),
+                'estimated_call_duration': f"{total_chunks * 2-3} minutes"  # Rough estimate
+            }
+            
             return {
-               
+                'transcript_analysis': {
+                    'summary': final_analysis.get('executive_summary', {}),
+                    'overall_score': final_analysis.get('executive_summary', {}).get('overall_score', 0),
+                    'letter_grade': final_analysis.get('executive_summary', {}).get('letter_grade', 'C')
+                },
                 'chunk_analyses': chunk_analyses,
                 'final_analysis': final_analysis,
-                'metadata': {
-                    'total_chunks': total_chunks,
-                    'references_per_chunk': top_k
-                }
+                'metadata': metadata,
+                'status': 'success'
             }
+            
         except Exception as e:
             print(f"[Evaluator] Error: {e}")
             return {
                 'error': str(e),
-                'status': 'failed'
+                'status': 'failed',
+                'metadata': {
+                    'evaluation_timestamp': datetime.now().isoformat(),
+                    'error_type': type(e).__name__
+                }
             }
     
     def evaluate_transcript_file(self, file_path: str, encoding: str = 'utf-8') -> Dict:
@@ -71,12 +112,25 @@ class SalesCallEvaluator:
             print(f"[Evaluator] Loading transcript from file: {file_path}")
             with open(file_path, 'r', encoding=encoding) as f:
                 transcript = f.read()
-            return self.evaluate_transcript(transcript)
+            
+            # Add file metadata
+            result = self.evaluate_transcript(transcript)
+            if 'metadata' in result:
+                result['metadata']['source_file'] = file_path
+                result['metadata']['file_size'] = len(transcript)
+            
+            return result
+            
         except Exception as e:
             print(f"[Evaluator] File error: {e}")
             return {
                 'error': f"Failed to process file {file_path}: {str(e)}",
-                'status': 'failed'
+                'status': 'failed',
+                'metadata': {
+                    'evaluation_timestamp': datetime.now().isoformat(),
+                    'source_file': file_path,
+                    'error_type': type(e).__name__
+                }
             }
 
 if __name__ == "__main__":
