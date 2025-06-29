@@ -11,3 +11,6 @@ uvicorn
 pydantic
 python-multipart
 tiktoken
+PyJWT
+passlib
+bcrypt
