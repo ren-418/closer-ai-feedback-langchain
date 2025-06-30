@@ -24,6 +24,9 @@ MAX_RESPONSE_TOKENS = 2500
 # Use OpenAI's tiktoken for accurate token counting
 encoding = tiktoken.encoding_for_model("gpt-4")
 
+CONTEXT_WINDOW = 8192
+SAFETY_BUFFER = 128  # For OpenAI chat message overhead
+
 def chunk_text_by_tokens(text: str, max_tokens: int = MAX_CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP_TOKENS) -> List[List[int]]:
     """
     Split text into overlapping chunks of max_tokens tokens, with specified overlap.
@@ -255,7 +258,7 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
     """
     Analyze a chunk using RAG with reference examples from good calls and context window.
     Returns enhanced analysis with reference file tracking and token safety.
-    Dynamically sets max_tokens to avoid context window errors.
+    Dynamically sets max_tokens to avoid context window errors, with a safety buffer.
     """
     try:
         prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
@@ -272,11 +275,11 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
                     "token_count": prompt_tokens
                 }
             }
-        # Dynamically set max_tokens
-        allowed_max_tokens = min(MAX_RESPONSE_TOKENS, 8192 - prompt_tokens)
+        # Dynamically set max_tokens with buffer
+        allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
         allowed_max_tokens = max(256, allowed_max_tokens)
         if allowed_max_tokens < MAX_RESPONSE_TOKENS:
-            print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window.")
+            print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window (with buffer).")
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
@@ -325,7 +328,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
     """
     Aggregate all chunk-level analyses into a comprehensive evaluation report.
     Returns a professional summary with reference file tracking and token safety.
-    Dynamically sets max_tokens to avoid context window errors.
+    Dynamically sets max_tokens to avoid context window errors, with a safety buffer.
     """
     # Collect all reference files used across chunks
     all_reference_files = set()
@@ -459,11 +462,11 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
             f"{', '.join(all_reference_files)}\n\n"
             "Create a comprehensive final report. Respond in JSON format as specified above."
         )
-    # Dynamically set max_tokens
-    allowed_max_tokens = min(MAX_RESPONSE_TOKENS, 8192 - prompt_tokens)
+    # Dynamically set max_tokens with buffer
+    allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
     allowed_max_tokens = max(256, allowed_max_tokens)
     if allowed_max_tokens < MAX_RESPONSE_TOKENS:
-        print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window.")
+        print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window (with buffer).")
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4",
