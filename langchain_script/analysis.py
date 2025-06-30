@@ -112,12 +112,24 @@ def embed_new_transcript(transcript_text: str) -> List[Dict]:
 def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '') -> str:
     """
     Build a professional prompt for analyzing a chunk with reference examples and context window.
-    Includes token safety checks.
+    Includes token safety checks and explicit instructions for lead question extraction.
     """
     # Base prompt structure
     base_prompt = (
         "You are an expert sales call evaluator with 15+ years of experience in sales training and coaching. "
         "Analyze this sales call chunk by comparing it to reference examples from successful calls.\n\n"
+        "IMPORTANT: In the transcript, the 'lead' is the prospect/customer, and the 'closer' is the sales representative. "
+        "Only extract questions that are asked by the lead. Do NOT include any questions asked by the closer.\n"
+        "If the transcript uses names, use the context to determine which speaker is the lead.\n\n"
+        "Example:\n"
+        "Transcript:\n"
+        "Closer: How are you today?\n"
+        "Lead: I'm good, thanks. Can you tell me more about your product?\n"
+        "Closer: Sure! What are your main challenges?\n"
+        "Lead: How much does it cost?\n\n"
+        "Extracted lead questions:\n"
+        "- Can you tell me more about your product?\n"
+        "- How much does it cost?\n\n"
     )
     
     # Add context sections
@@ -430,6 +442,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         '  "lead_interaction_summary": {\n'
         '    "total_questions_asked": 5,\n'
         '    "total_objections_raised": 3,\n'
+        '    "questions_asked": ["specific question 1", "specific question 2"],\n'
         '    "engagement_pattern": "high/medium/low",\n'
         '    "buying_signals": ["signal 1", "signal 2"],\n'
         '    "concerns_expressed": ["concern 1", "concern 2"]\n'
