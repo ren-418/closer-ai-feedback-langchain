@@ -255,6 +255,7 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
     """
     Analyze a chunk using RAG with reference examples from good calls and context window.
     Returns enhanced analysis with reference file tracking and token safety.
+    Dynamically sets max_tokens to avoid context window errors.
     """
     try:
         prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
@@ -271,16 +272,18 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
                     "token_count": prompt_tokens
                 }
             }
-        
+        # Dynamically set max_tokens
+        allowed_max_tokens = min(MAX_RESPONSE_TOKENS, 8192 - prompt_tokens)
+        allowed_max_tokens = max(256, allowed_max_tokens)
+        if allowed_max_tokens < MAX_RESPONSE_TOKENS:
+            print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window.")
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature,
-            max_tokens=MAX_RESPONSE_TOKENS
+            max_tokens=allowed_max_tokens
         )
-        
         analysis_result = json.loads(response.choices[0].message.content)
-        
         # Add reference file tracking
         reference_files_used = []
         for ref in reference_chunks:
@@ -290,17 +293,14 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
                 'similarity_score': round(ref['score'], 3),
                 'date': ref['metadata'].get('date', 'Unknown')
             })
-        
         # Ensure analysis_metadata exists and add reference files
         if 'analysis_metadata' not in analysis_result:
             analysis_result['analysis_metadata'] = {}
-        
         analysis_result['analysis_metadata']['reference_files_used'] = reference_files_used
         analysis_result['analysis_metadata']['analysis_timestamp'] = datetime.now().isoformat()
         analysis_result['analysis_metadata']['token_count'] = prompt_tokens
-        
+        analysis_result['analysis_metadata']['max_tokens_used'] = allowed_max_tokens
         return analysis_result
-        
     except json.JSONDecodeError as e:
         print(f"[Error] JSON decode error: {e}")
         return {
@@ -325,6 +325,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
     """
     Aggregate all chunk-level analyses into a comprehensive evaluation report.
     Returns a professional summary with reference file tracking and token safety.
+    Dynamically sets max_tokens to avoid context window errors.
     """
     # Collect all reference files used across chunks
     all_reference_files = set()
@@ -332,7 +333,6 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         if 'analysis_metadata' in analysis and 'reference_files_used' in analysis['analysis_metadata']:
             for ref in analysis['analysis_metadata']['reference_files_used']:
                 all_reference_files.add(f"{ref['filename']} ({ref['closer_name']})")
-    
     # Prepare chunk summaries for aggregation
     chunk_summaries = []
     for i, analysis in enumerate(chunk_analyses):
@@ -347,7 +347,6 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
                 'questions': analysis.get('lead_interaction', {}).get('questions_asked', [])
             }
             chunk_summaries.append(summary)
-    
     # Build aggregation prompt with token safety
     prompt = (
         "You are an expert sales call evaluator creating a comprehensive final report. "
@@ -442,7 +441,6 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         '  }\n'
         "}"
     )
-    
     # Check token count for aggregation prompt
     prompt_tokens = calculate_prompt_tokens(prompt)
     if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
@@ -461,27 +459,27 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
             f"{', '.join(all_reference_files)}\n\n"
             "Create a comprehensive final report. Respond in JSON format as specified above."
         )
-    
+    # Dynamically set max_tokens
+    allowed_max_tokens = min(MAX_RESPONSE_TOKENS, 8192 - prompt_tokens)
+    allowed_max_tokens = max(256, allowed_max_tokens)
+    if allowed_max_tokens < MAX_RESPONSE_TOKENS:
+        print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window.")
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=MAX_RESPONSE_TOKENS
+            max_tokens=allowed_max_tokens
         )
-        
         final_report = json.loads(response.choices[0].message.content)
-        
         # Ensure report_metadata exists and add reference files
         if 'report_metadata' not in final_report:
             final_report['report_metadata'] = {}
-        
         final_report['report_metadata']['reference_files_used'] = list(all_reference_files)
         final_report['report_metadata']['analysis_timestamp'] = datetime.now().isoformat()
         final_report['report_metadata']['total_chunks_analyzed'] = len(chunk_analyses)
-        
+        final_report['report_metadata']['max_tokens_used'] = allowed_max_tokens
         return final_report
-        
     except json.JSONDecodeError:
         return {
             "error": "Failed to parse LLM response as JSON",
@@ -489,7 +487,8 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
             "report_metadata": {
                 "reference_files_used": list(all_reference_files),
                 "analysis_timestamp": datetime.now().isoformat(),
-                "total_chunks_analyzed": len(chunk_analyses)
+                "total_chunks_analyzed": len(chunk_analyses),
+                "max_tokens_used": allowed_max_tokens
             }
         }
     except Exception as e:
@@ -498,7 +497,8 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
             "report_metadata": {
                 "reference_files_used": list(all_reference_files),
                 "analysis_timestamp": datetime.now().isoformat(),
-                "total_chunks_analyzed": len(chunk_analyses)
+                "total_chunks_analyzed": len(chunk_analyses),
+                "max_tokens_used": allowed_max_tokens
             }
         }
 
