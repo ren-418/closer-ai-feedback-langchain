@@ -28,24 +28,22 @@ CREATE TABLE IF NOT EXISTS closers (
 -- Calls table (main call records)
 CREATE TABLE IF NOT EXISTS calls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    closer_id UUID REFERENCES closers(id) ON DELETE SET NULL,
-    closer_name VARCHAR(255) NOT NULL, -- Denormalized for performance
-    filename VARCHAR(500),
-    transcript_text TEXT NOT NULL,
-    transcript_length INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
+    closer_name VARCHAR(255),
+    closer_email VARCHAR(255) REFERENCES closers(email) ON DELETE SET NULL,
+    transcript_text TEXT,
+    transcript_length INT,
     call_date DATE,
-    call_duration_minutes INTEGER,
-    status VARCHAR(50) DEFAULT 'new', -- new, analyzed, reviewed, coaching_needed, closed
-    total_chunks INTEGER,
-    total_reference_files_used INTEGER,
-    overall_score INTEGER,
-    letter_grade VARCHAR(10),
+    status VARCHAR(50),
+    overall_score FLOAT,
+    letter_grade VARCHAR(5),
     analysis_timestamp TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    total_chunks INT,
+    total_reference_files_used INT
 );
 
 -- Call analyses table (detailed analysis results)
+
 CREATE TABLE IF NOT EXISTS call_analyses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     call_id UUID REFERENCES calls(id) ON DELETE CASCADE,
@@ -69,28 +67,26 @@ CREATE TABLE IF NOT EXISTS final_analyses (
 -- Performance metrics table (for analytics)
 CREATE TABLE IF NOT EXISTS performance_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    closer_id UUID REFERENCES closers(id) ON DELETE CASCADE,
     call_id UUID REFERENCES calls(id) ON DELETE CASCADE,
-    overall_score INTEGER,
-    letter_grade VARCHAR(10),
-    rapport_building_score INTEGER,
-    discovery_score INTEGER,
-    objection_handling_score INTEGER,
-    pitch_delivery_score INTEGER,
-    closing_effectiveness_score INTEGER,
-    total_objections INTEGER,
-    total_questions INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    overall_score FLOAT,
+    letter_grade VARCHAR(5),
+    rapport_building_score FLOAT,
+    discovery_score FLOAT,
+    objection_handling_score FLOAT,
+    pitch_delivery_score FLOAT,
+    closing_effectiveness_score FLOAT,
+    total_objections INT,
+    total_questions INT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_calls_closer_id ON calls(closer_id);
 CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
 CREATE INDEX IF NOT EXISTS idx_calls_date ON calls(call_date);
 CREATE INDEX IF NOT EXISTS idx_calls_score ON calls(overall_score);
 CREATE INDEX IF NOT EXISTS idx_call_analyses_call_id ON call_analyses(call_id);
-CREATE INDEX IF NOT EXISTS idx_performance_metrics_closer_id ON performance_metrics(closer_id);
 CREATE INDEX IF NOT EXISTS idx_performance_metrics_date ON performance_metrics(created_at);
+CREATE INDEX IF NOT EXISTS idx_calls_closer_email ON calls(closer_email);
 
 -- Triggers for updated_at timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()

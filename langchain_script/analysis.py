@@ -148,13 +148,13 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     
     for i, ref in enumerate(reference_texts[:MAX_REF_CHUNKS], 1):
         ref_text = truncate_reference_chunk(ref['metadata']['transcript'], MAX_REF_TOKENS)
-        ref_filename = ref['metadata'].get('filename', f'Reference {i}')
+        ref_label = ref['metadata'].get('label', f'Reference {i}')
         ref_closer = ref['metadata'].get('closer_name', 'Unknown Closer')
         similarity_score = round(ref['score'], 3)
         
         ref_content = (
             f"\n--- REFERENCE {i} (Similarity: {similarity_score}) ---\n"
-            f"File: {ref_filename}\n"
+            f"File: {ref_label}\n"
             f"Closer: {ref_closer}\n"
             f"Example:\n```\n{ref_text}\n```\n"
         )
@@ -303,7 +303,7 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
         reference_files_used = []
         for ref in reference_chunks:
             reference_files_used.append({
-                'filename': ref['metadata'].get('filename', 'Unknown'),
+                'filename': ref['metadata'].get('label', 'Unknown'),
                 'closer_name': ref['metadata'].get('closer_name', 'Unknown'),
                 'similarity_score': round(ref['score'], 3),
                 'date': ref['metadata'].get('date', 'Unknown')

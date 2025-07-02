@@ -47,7 +47,7 @@ class PineconeManager:
         Store transcript embedding in Pinecone with minimal metadata (filename, closer_name, date, transcript).
         Returns the vector ID.
         """
-        vector_id = metadata.get('filename', str(hash(transcript_text)))
+        vector_id = str(hash(transcript_text))
         embedding = self.generate_embedding(transcript_text)
         # Upsert the vector with minimal metadata
         self.index.upsert(vectors=[

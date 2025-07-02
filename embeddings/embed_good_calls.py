@@ -17,31 +17,6 @@ CHUNK_OVERLAP_TOKENS = 300
 # Use OpenAI's tiktoken for accurate token counting
 encoding = tiktoken.encoding_for_model("gpt-4")
 
-def extract_metadata_from_filename(filename: str) -> Dict:
-    """Extract minimal metadata from filename (closer name, date, etc.)."""
-    base = os.path.basename(filename)
-    name = base.replace('.txt', '')
-    # Try to extract date if present
-    date_str = ''
-    for month in ['May', 'Jun', 'June']:
-        if month in base:
-            try:
-                day = int(''.join(filter(str.isdigit, base.split(month)[1].split()[0])))
-                date_str = f"2025-{month}-{day:02d}"
-            except:
-                pass
-    return {
-        'filename': base,
-        'closer_name': name.split(' - ')[0] if ' - ' in name else name.split(' X ')[0],
-        'date': date_str
-    }
-
-def sanitize_filename(filename: str) -> str:
-    """Sanitize filename to use as file_id (remove extension, spaces, special chars)."""
-    base = os.path.basename(filename)
-    name = os.path.splitext(base)[0]
-    return re.sub(r'[^a-zA-Z0-9_-]', '_', name)
-
 def chunk_text_by_tokens(text: str, max_tokens: int = MAX_CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP_TOKENS) -> List[str]:
     """
     Split text into overlapping chunks of max_tokens tokens, with specified overlap.
@@ -71,22 +46,19 @@ def embed_all_good_calls():
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 transcript = f.read()
-            file_id = sanitize_filename(file_path)
             chunks = chunk_text_by_tokens(transcript)
             total_chunks = len(chunks)
             print(f"\nProcessing {os.path.basename(file_path)}")
             print(f"Split into {total_chunks} token-based chunks")
-            metadata_base = extract_metadata_from_filename(file_path)
-            metadata_base['file_id'] = file_id  
             for idx, chunk in enumerate(chunks):
-                metadata = metadata_base.copy()
-                metadata['transcript'] = chunk
-                metadata['chunk_number'] = idx + 1
-                metadata['total_chunks'] = total_chunks
-                metadata['chunk_length'] = len(chunk)
-                metadata['file_id'] = file_id  
-                vector_id = f"{file_id}_chunk{idx+1}"
-                pinecone_manager.store_transcript(chunk, {**metadata, 'filename': vector_id})
+                metadata = {
+                    'transcript': chunk,
+                    'chunk_number': idx + 1,
+                    'total_chunks': total_chunks,
+                    'chunk_length': len(chunk)
+                }
+                vector_id = f"chunk{idx+1}"
+                pinecone_manager.store_transcript(chunk, metadata)
                 print(f"✓ Stored chunk {idx+1}/{total_chunks} (length: {len(chunk)} chars)")
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")

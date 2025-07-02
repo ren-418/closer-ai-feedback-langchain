@@ -32,7 +32,6 @@ class SalesCallEvaluator:
             
             # Analyze each chunk
             chunk_analyses = []
-            all_reference_files = set()
             
             for idx, chunk_data in enumerate(chunks_data):
                 print(f"[Evaluator] Analyzing chunk {idx+1}/{total_chunks}...")
@@ -51,11 +50,6 @@ class SalesCallEvaluator:
                     chunk_data['context_next']
                 )
                 
-                # Track reference files used
-                if 'analysis_metadata' in analysis and 'reference_files_used' in analysis['analysis_metadata']:
-                    for ref in analysis['analysis_metadata']['reference_files_used']:
-                        all_reference_files.add(f"{ref['filename']} ({ref['closer_name']})")
-                
                 chunk_analyses.append({
                     'chunk_number': chunk_data['chunk_number'],
                     'total_chunks': chunk_data['total_chunks'],
@@ -73,8 +67,7 @@ class SalesCallEvaluator:
             metadata = {
                 'total_chunks': total_chunks,
                 'references_per_chunk': top_k,
-                'total_reference_files_used': len(all_reference_files),
-                'reference_files': list(all_reference_files),
+                'total_reference_files_used': 0,
                 'evaluation_timestamp': datetime.now().isoformat(),
                 'transcript_length': len(transcript),
                 'estimated_call_duration': f"{total_chunks * 2-3} minutes"  # Rough estimate

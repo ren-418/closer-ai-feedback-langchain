@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -76,6 +76,15 @@ class TranscriptResponse(BaseModel):
     final_analysis: Dict
     metadata: Dict
     status: str
+
+class NewCallRequest(BaseModel):
+    closer_name: str
+    closer_email: str
+    transcript_text: str
+    call_date: Optional[str] = None
+
+class CloserEmailRequest(BaseModel):
+    closer_email: str
 
 # Authentication functions
 def hash_password(password: str) -> str:
@@ -157,17 +166,17 @@ async def login_user(user: UserLogin):
 # Closer management endpoints
 @app.post("/closers", dependencies=[Depends(verify_token)])
 async def create_closer(closer: CloserCreate):
-    """Create a new closer."""
+    """Create a new closer (by email, or return existing)."""
     try:
-        new_closer = db_manager.create_closer(
-            closer.name, 
-            closer.email, 
-            closer.phone, 
+        closer_obj = db_manager.create_closer(
+            closer.name,
+            closer.email,
+            closer.phone,
             closer.hire_date
         )
-        if not new_closer:
+        if not closer_obj:
             raise HTTPException(status_code=500, detail="Failed to create closer")
-        return new_closer
+        return closer_obj
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -180,11 +189,11 @@ async def get_closers():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/closers/{closer_id}", dependencies=[Depends(verify_token)])
-async def get_closer(closer_id: str):
-    """Get specific closer by ID."""
+@app.post("/closers/email", dependencies=[Depends(verify_token)])
+async def get_closer_by_email(request: CloserEmailRequest):
+    """Get specific closer by email (POST)."""
     try:
-        closer = db_manager.get_closer_by_id(closer_id)
+        closer = db_manager.get_closer_by_email(request.closer_email)
         if not closer:
             raise HTTPException(status_code=404, detail="Closer not found")
         return closer
@@ -192,104 +201,17 @@ async def get_closer(closer_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Call management endpoints
-@app.post("/calls/upload", dependencies=[Depends(verify_token)])
-async def upload_call_file(
-    file: UploadFile = File(...),
-    closer_name: str = None,
-    call_date: str = None
-):
-    """Upload and analyze a call transcript file."""
-    try:
-        if not closer_name:
-            raise HTTPException(status_code=400, detail="closer_name is required")
-        
-        # Read file content
-        content = await file.read()
-        transcript = content.decode('utf-8')
-        
-        # Create call record
-        call_record = db_manager.create_call(
-            closer_name=closer_name,
-            transcript_text=transcript,
-            filename=file.filename,
-            call_date=call_date
-        )
-        
-        if not call_record:
-            raise HTTPException(status_code=500, detail="Failed to create call record")
-        
-        # Analyze the transcript
-        analysis_result = evaluator.evaluate_transcript(transcript)
-        
-        if analysis_result.get('status') == 'failed':
-            raise HTTPException(status_code=500, detail=analysis_result.get('error', 'Analysis failed'))
-        
-        # Store analysis results
-        success = db_manager.update_call_analysis(call_record['id'], analysis_result)
-        
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to store analysis results")
-        
-        return {
-            "call_id": call_record['id'],
-            "message": "Call uploaded and analyzed successfully",
-            "analysis": analysis_result
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/calls/evaluate", dependencies=[Depends(verify_token)])
-async def evaluate_transcript(request: TranscriptRequest):
-    """Evaluate a transcript and store results."""
-    try:
-        # Create call record
-        call_record = db_manager.create_call(
-            closer_name=request.closer_name,
-            transcript_text=request.transcript,
-            filename=request.filename,
-            call_date=request.call_date
-        )
-        
-        if not call_record:
-            raise HTTPException(status_code=500, detail="Failed to create call record")
-        
-        # Analyze the transcript
-        analysis_result = evaluator.evaluate_transcript(
-            request.transcript,
-            top_k=request.top_k
-        )
-        
-        if analysis_result.get('status') == 'failed':
-            raise HTTPException(status_code=500, detail=analysis_result.get('error', 'Analysis failed'))
-        
-        # Store analysis results
-        success = db_manager.update_call_analysis(call_record['id'], analysis_result)
-        
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to store analysis results")
-        
-        return {
-            "call_id": call_record['id'],
-            "transcript_analysis": analysis_result.get('transcript_analysis', {}),
-            "chunk_analyses": analysis_result.get('chunk_analyses', []),
-            "final_analysis": analysis_result.get('final_analysis', {}),
-            "metadata": analysis_result.get('metadata', {}),
-            "status": "success"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/calls", dependencies=[Depends(verify_token)])
 async def get_calls(
-    closer_name: Optional[str] = None,
+    closer_email: Optional[str] = None,
     status: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     limit: int = 100
 ):
-    """Get calls with optional filtering."""
+    """Get calls with optional filtering (by closer_email, status, date)."""
     try:
-        calls = db_manager.get_calls(closer_name, status, start_date, end_date, limit)
+        calls = db_manager.get_calls(closer_email=closer_email, status=status, start_date=start_date, end_date=end_date, limit=limit)
         return {"calls": calls, "total": len(calls)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -305,33 +227,29 @@ async def get_call(call_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/calls/{call_id}/status", dependencies=[Depends(verify_token)])
-async def update_call_status(call_id: str, call_update: CallUpdate):
-    """Update call status."""
+@app.post("/calls/new-call", dependencies=[Depends(verify_token)])
+async def new_call(request: NewCallRequest):
+    """Create and analyze a new call from JSON (for Google Sheet/automation)."""
     try:
-        success = db_manager.update_call_status(call_id, call_update.status)
+        db_manager.create_closer(request.closer_name, request.closer_email)
+        call_record = db_manager.create_call(
+            closer_name=request.closer_name,
+            closer_email=request.closer_email,
+            transcript_text=request.transcript_text,
+            call_date=request.call_date
+        )
+        if not call_record:
+            raise HTTPException(status_code=500, detail="Failed to create call record")
+        analysis_result = evaluator.evaluate_transcript(request.transcript_text)
+        if analysis_result.get('status') == 'failed':
+            raise HTTPException(status_code=500, detail=analysis_result.get('error', 'Analysis failed'))
+        success = db_manager.update_call_analysis(call_record['id'], analysis_result)   
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to update call status")
-        return {"message": "Call status updated successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Analytics endpoints
-@app.get("/analytics/closer/{closer_name}", dependencies=[Depends(verify_token)])
-async def get_closer_analytics(closer_name: str, days: int = 30):
-    """Get performance analytics for a specific closer."""
-    try:
-        analytics = db_manager.get_closer_performance(closer_name, days)
-        return analytics
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/analytics/team", dependencies=[Depends(verify_token)])
-async def get_team_analytics():
-    """Get team-wide analytics and leaderboard."""
-    try:
-        analytics = db_manager.get_team_analytics()
-        return analytics
+            raise HTTPException(status_code=500, detail="Failed to store analysis results")
+        return {
+            "status": "success",
+            "call_id": call_record['id']
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -343,57 +261,6 @@ async def get_leaderboard():
         return {
             "leaderboard": analytics.get('leaderboard', []),
             "top_performers": analytics.get('top_performers', [])
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Search endpoint
-@app.get("/search", dependencies=[Depends(verify_token)])
-async def search_calls(search_term: str, limit: int = 50):
-    """Search calls by closer name or filename."""
-    try:
-        results = db_manager.search_calls(search_term, limit)
-        return {"results": results, "total": len(results)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Legacy endpoints (for backward compatibility)
-@app.post("/evaluate", response_model=TranscriptResponse)
-async def evaluate_transcript_legacy(request: TranscriptRequest):
-    """Legacy endpoint for transcript evaluation (no database storage)."""
-    try:
-        result = evaluator.evaluate_transcript(
-            request.transcript,
-            top_k=request.top_k
-        )
-        if result.get('status') == 'failed':
-            raise HTTPException(status_code=500, detail=result.get('error', 'Evaluation failed'))
-        
-        # Add dummy call_id for compatibility
-        result['call_id'] = 'legacy-' + datetime.now().isoformat()
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/stats")
-async def get_stats():
-    """Get system statistics."""
-    try:
-        stats = pinecone_manager.get_index_stats()
-        return {
-            "pinecone_stats": stats,
-            "status": "healthy",
-            "system_info": {
-                "evaluator_version": "2.0.0",
-                "analysis_features": [
-                    "Reference file tracking",
-                    "Enhanced chunk analysis", 
-                    "Professional scoring",
-                    "Coaching recommendations",
-                    "Business management features"
-                ],
-                "database_enabled": True
-            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
