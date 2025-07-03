@@ -253,6 +253,7 @@ async def get_call(call_id: str):
 async def new_call(request: NewCallRequest):
     """Create and analyze a new call from JSON (for Google Sheet/automation)."""
     try:
+        print("New call request received")
         print(request)
         db_manager.create_closer(request.closer_name, request.closer_email)
         call_record = db_manager.create_call(
