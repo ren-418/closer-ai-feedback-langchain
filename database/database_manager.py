@@ -253,11 +253,20 @@ class DatabaseManager:
             executive_summary = final_analysis.get('executive_summary', {})
             metadata = analysis_result.get('metadata', {})
             
+            # Handle custom business rules violations
+            custom_rules = final_analysis.get('custom_business_rules', {})
+            violations = custom_rules.get('violations_found', [])
+            total_score_penalty = custom_rules.get('total_score_penalty', 0)
+            
+            # Calculate adjusted score
+            base_score = executive_summary.get('overall_score', 0)
+            adjusted_score = max(0, base_score + total_score_penalty)  # Ensure score doesn't go below 0
+            
             update_data = {
                 'status': 'analyzed',
                 'total_chunks': metadata.get('total_chunks'),
                 'total_reference_files_used': metadata.get('total_reference_files_used'),
-                'overall_score': executive_summary.get('overall_score'),
+                'overall_score': adjusted_score,
                 'letter_grade': executive_summary.get('letter_grade'),
                 'analysis_timestamp': datetime.now().isoformat()
             }
@@ -278,7 +287,7 @@ class DatabaseManager:
                 }
                 self.client.table('call_analyses').insert(chunk_data).execute()
             
-            # Store final analysis
+            # Store final analysis with custom business rules
             final_data = {
                 'call_id': call_id,
                 'analysis_data': final_analysis,
@@ -289,7 +298,7 @@ class DatabaseManager:
             # Store performance metrics
             performance_data = {
                 'call_id': call_id,
-                'overall_score': executive_summary.get('overall_score'),
+                'overall_score': adjusted_score,
                 'letter_grade': executive_summary.get('letter_grade'),
                 'created_at': datetime.now().isoformat()
             }
@@ -329,44 +338,92 @@ class DatabaseManager:
     #         print(f"[Database] Error updating call status: {e}")
     #         return False
     
-    # # Analytics
-    # def get_closer_performance(self, closer_name: str, days: int = 30) -> Dict:
-    #     """Get performance metrics for a specific closer."""
-    #     try:
-    #         # Get calls for the closer
-    #         calls = self.get_calls(closer_name=closer_name)
+    def get_closer_performance(self, closer_name: str, days: int = 30) -> Dict:
+        """Get performance metrics for a specific closer."""
+        try:
+            # Get calls for the closer
+            calls = self.get_calls(closer_name=closer_name)
             
-    #         if not calls:
-    #             return {
-    #                 'closer_name': closer_name,
-    #                 'total_calls': 0,
-    #                 'average_score': 0,
-    #                 'best_score': 0,
-    #                 'worst_score': 0,
-    #                 'grade_distribution': {},
-    #                 'recent_trend': []
-    #             }
+            if not calls:
+                return {
+                    'closer_name': closer_name,
+                    'total_calls': 0,
+                    'average_score': 0,
+                    'best_score': 0,
+                    'worst_score': 0,
+                    'grade_distribution': {},
+                    'recent_trend': []
+                }
             
-    #         # Calculate metrics
-    #         scores = [call.get('overall_score', 0) for call in calls if call.get('overall_score')]
-    #         grades = [call.get('letter_grade') for call in calls if call.get('letter_grade')]
+            # Calculate metrics
+            scores = [call.get('overall_score', 0) for call in calls if call.get('overall_score')]
+            grades = [call.get('letter_grade') for call in calls if call.get('letter_grade')]
             
-    #         grade_distribution = {}
-    #         for grade in grades:
-    #             grade_distribution[grade] = grade_distribution.get(grade, 0) + 1
+            grade_distribution = {}
+            for grade in grades:
+                grade_distribution[grade] = grade_distribution.get(grade, 0) + 1
             
-    #         return {
-    #             'closer_name': closer_name,
-    #             'total_calls': len(calls),
-    #             'average_score': sum(scores) / len(scores) if scores else 0,
-    #             'best_score': max(scores) if scores else 0,
-    #             'worst_score': min(scores) if scores else 0,
-    #             'grade_distribution': grade_distribution,
-    #             'recent_trend': scores[-10:] if len(scores) > 10 else scores  # Last 10 scores
-    #         }
-    #     except Exception as e:
-    #         print(f"[Database] Error getting closer performance: {e}")
-    #         return {}
+            return {
+                'closer_name': closer_name,
+                'total_calls': len(calls),
+                'average_score': sum(scores) / len(scores) if scores else 0,
+                'best_score': max(scores) if scores else 0,
+                'worst_score': min(scores) if scores else 0,
+                'grade_distribution': grade_distribution,
+                'recent_trend': scores[-10:] if len(scores) > 10 else scores  # Last 10 scores
+            }
+        except Exception as e:
+            print(f"[Database] Error getting closer performance: {e}")
+            return {}
+
+    # Business Rules Management
+    def get_business_rules(self) -> List[Dict]:
+        """Get all active business rules."""
+        try:
+            result = self.client.table('evaluation_criteria').select('*').eq('is_active', True).order('created_at', desc=True).execute()
+            return result.data
+        except Exception as e:
+            print(f"[Database] Error getting business rules: {e}")
+            return []
+    
+    def create_business_rule(self, criteria_name: str, description: str, violation_text: str, 
+                           correct_text: str = None, score_penalty: int = -2, 
+                           feedback_message: str = None, category: str = "general") -> Dict:
+        """Create a new business rule."""
+        try:
+            rule_data = {
+                'criteria_name': criteria_name,
+                'description': description,
+                'violation_text': violation_text,
+                'correct_text': correct_text,
+                'score_penalty': score_penalty,
+                'feedback_message': feedback_message or f"Violation: {violation_text}",
+                'category': category,
+                'is_active': True
+            }
+            result = self.client.table('evaluation_criteria').insert(rule_data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"[Database] Error creating business rule: {e}")
+            return None
+    
+    def update_business_rule(self, rule_id: str, update_data: Dict) -> Dict:
+        """Update an existing business rule."""
+        try:
+            result = self.client.table('evaluation_criteria').update(update_data).eq('id', rule_id).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"[Database] Error updating business rule: {e}")
+            return None
+    
+    def delete_business_rule(self, rule_id: str) -> bool:
+        """Delete a business rule (soft delete by setting is_active to false)."""
+        try:
+            self.client.table('evaluation_criteria').update({'is_active': False}).eq('id', rule_id).execute()
+            return True
+        except Exception as e:
+            print(f"[Database] Error deleting business rule: {e}")
+            return False
 
 # Global database manager instance
 db_manager = DatabaseManager() 

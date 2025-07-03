@@ -130,6 +130,38 @@ def format_report(report):
                 metric_name = metric.replace('_', ' ').title()
                 print(f"   • {metric_name}: {score}/10")
     
+    # Display custom business rules violations
+    custom_rules = final.get('custom_business_rules', {})
+    violations = custom_rules.get('violations_found', [])
+    if violations:
+        print(f"\n🚨 CUSTOM BUSINESS RULES VIOLATIONS:")
+        print(f"   • Total violations found: {custom_rules.get('total_violations', len(violations))}")
+        print(f"   • Total score penalty: {custom_rules.get('total_score_penalty', 0)} points")
+        
+        for i, violation in enumerate(violations, 1):
+            rule = violation.get('rule', 'Unknown rule')
+            violation_text = violation.get('violation_text', 'Unknown')
+            context = violation.get('context', 'No context provided')
+            correct_text = violation.get('correct_text', 'N/A')
+            explanation = violation.get('explanation', 'No explanation provided')
+            score_impact = violation.get('score_impact', 0)
+            
+            print(f"\n   {i}. {rule.upper()}")
+            print(f"      ❌ Violation: '{violation_text}' found in context")
+            print(f"      📝 Context: '{context}'")
+            print(f"      ✅ Should use: '{correct_text}'")
+            print(f"      💬 Explanation: {explanation}")
+            print(f"      📉 Score impact: {score_impact} points")
+        
+        # Display recommendations
+        recommendations = custom_rules.get('recommendations', [])
+        if recommendations:
+            print(f"\n   📋 RECOMMENDATIONS:")
+            for rec in recommendations:
+                print(f"      • {rec}")
+    else:
+        print(f"\n✅ CUSTOM BUSINESS RULES: No violations found")
+    
     print(f"\n" + "="*60)
     print("           END OF REPORT")
     print("="*60)

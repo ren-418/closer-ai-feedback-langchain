@@ -86,6 +86,24 @@ class NewCallRequest(BaseModel):
 class CloserEmailRequest(BaseModel):
     closer_email: str
 
+class BusinessRuleCreate(BaseModel):
+    criteria_name: str
+    description: str
+    violation_text: str
+    correct_text: Optional[str] = None
+    score_penalty: int = -2
+    feedback_message: str
+    category: str = "general"
+
+class BusinessRuleUpdate(BaseModel):
+    description: Optional[str] = None
+    violation_text: Optional[str] = None
+    correct_text: Optional[str] = None
+    score_penalty: Optional[int] = None
+    feedback_message: Optional[str] = None
+    category: Optional[str] = None
+    is_active: Optional[bool] = None
+
 # Authentication functions
 def hash_password(password: str) -> str:
     """Hash password using SHA-256."""
@@ -262,6 +280,57 @@ async def get_leaderboard():
             "leaderboard": analytics.get('leaderboard', []),
             "top_performers": analytics.get('top_performers', [])
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Business Rules Management endpoints
+@app.get("/business-rules", dependencies=[Depends(verify_token)])
+async def get_business_rules():
+    """Get all active business rules."""
+    try:
+        rules = db_manager.get_business_rules()
+        return {"business_rules": rules}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/business-rules", dependencies=[Depends(verify_token)])
+async def create_business_rule(rule: BusinessRuleCreate):
+    """Create a new business rule."""
+    try:
+        rule_obj = db_manager.create_business_rule(
+            criteria_name=rule.criteria_name,
+            description=rule.description,
+            violation_text=rule.violation_text,
+            correct_text=rule.correct_text,
+            score_penalty=rule.score_penalty,
+            feedback_message=rule.feedback_message,
+            category=rule.category
+        )
+        if not rule_obj:
+            raise HTTPException(status_code=500, detail="Failed to create business rule")
+        return rule_obj
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/business-rules/{rule_id}", dependencies=[Depends(verify_token)])
+async def update_business_rule(rule_id: str, rule: BusinessRuleUpdate):
+    """Update an existing business rule."""
+    try:
+        rule_obj = db_manager.update_business_rule(rule_id, rule.dict(exclude_unset=True))
+        if not rule_obj:
+            raise HTTPException(status_code=404, detail="Business rule not found")
+        return rule_obj
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/business-rules/{rule_id}", dependencies=[Depends(verify_token)])
+async def delete_business_rule(rule_id: str):
+    """Delete a business rule."""
+    try:
+        success = db_manager.delete_business_rule(rule_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Business rule not found")
+        return {"status": "success", "message": "Business rule deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

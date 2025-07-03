@@ -370,6 +370,18 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         f"{json.dumps(chunk_summaries, indent=2)}\n\n"
         "REFERENCE FILES USED:\n"
         f"{', '.join(all_reference_files)}\n\n"
+        "CUSTOM BUSINESS RULES EVALUATION:\n"
+        "Check for the following violations and note them specifically:\n"
+        "1. **Currency Violations**: If closer mentions 'pounds', 'euro', 'quid', 'sterling' instead of 'dollars' or 'USD'\n"
+        "2. **Compliance Issues**: Any mention of unauthorized payment methods or terms\n"
+        "3. **Branding Violations**: Incorrect company name, product names, or terminology\n"
+        "\n"
+        "For each violation found:\n"
+        "- Note the exact text and context where it appears\n"
+        "- Suggest the correct term to use\n"
+        "- Explain why it's a violation and its business impact\n"
+        "- Indicate score penalty (typically -2 points per violation)\n"
+        "\n"
         "Create a comprehensive final report that includes:\n"
         "1. **Executive Summary**: Overall performance assessment\n"
         "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
@@ -377,8 +389,9 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
         "5. **Discovery & Qualification**: How well the closer gathered information\n"
         "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
-        "7. **Coaching Recommendations**: Priority-based improvement suggestions\n"
-        "8. **Reference Comparisons**: How this call compares to successful examples\n"
+        "7. **Custom Business Rules**: Violations found and their impact\n"
+        "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
+        "9. **Reference Comparisons**: How this call compares to successful examples\n"
         "\n"
         "Respond in this EXACT JSON format:\n"
         "{\n"
@@ -423,6 +436,24 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         '      "closing_attempts": ["attempt 1", "attempt 2"],\n'
         '      "payment_discussion": "How payment was discussed"\n'
         '    }\n'
+        '  },\n'
+        '  "custom_business_rules": {\n'
+        '    "violations_found": [\n'
+        '      {\n'
+        '        "rule": "currency_violation",\n'
+        '        "violation_text": "pounds",\n'
+        '        "context": "The price is 100 pounds",\n'
+        '        "correct_text": "dollars",\n'
+        '        "explanation": "Used incorrect currency - all transactions must be in USD",\n'
+        '        "score_impact": -2\n'
+        '      }\n'
+        '    ],\n'
+        '    "total_violations": 1,\n'
+        '    "total_score_penalty": -2,\n'
+        '    "recommendations": [\n'
+        '      "Always use \'dollars\' when discussing pricing",\n'
+        '      "Review company currency guidelines"\n'
+        '    ]\n'
         '  },\n'
         '  "coaching_recommendations": [\n'
         '    {\n'
