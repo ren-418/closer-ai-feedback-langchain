@@ -11,6 +11,7 @@ from langchain_script.evaluator import SalesCallEvaluator
 from embeddings.pinecone_store import PineconeManager
 from database.database_manager import DatabaseManager
 import json
+import logging
 
 app = FastAPI(
     title="AI Sales Call Evaluator API",
@@ -248,7 +249,7 @@ async def get_call(call_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/calls/new-call", dependencies=[Depends(verify_token)])
+@app.post("/calls/new-call")
 async def new_call(request: NewCallRequest):
     """Create and analyze a new call from JSON (for Google Sheet/automation)."""
     try:
@@ -257,7 +258,7 @@ async def new_call(request: NewCallRequest):
             closer_name=request.closer_name,
             closer_email=request.closer_email,
             transcript_text=request.transcript_text,
-            call_date=request.call_date
+            call_date=request.date_of_call
         )
         if not call_record:
             raise HTTPException(status_code=500, detail="Failed to create call record")
@@ -287,55 +288,62 @@ async def get_leaderboard():
         raise HTTPException(status_code=500, detail=str(e))
 
 # Business Rules Management endpoints
-@app.get("/business-rules", dependencies=[Depends(verify_token)])
-async def get_business_rules():
-    """Get all active business rules."""
-    try:
-        rules = db_manager.get_business_rules()
-        return {"business_rules": rules}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.get("/business-rules", dependencies=[Depends(verify_token)])
+# async def get_business_rules():
+#     """Get all active business rules."""
+#     try:
+#         rules = db_manager.get_business_rules()
+#         return {"business_rules": rules}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/business-rules", dependencies=[Depends(verify_token)])
-async def create_business_rule(rule: BusinessRuleCreate):
-    """Create a new business rule."""
-    try:
-        rule_obj = db_manager.create_business_rule(
-            criteria_name=rule.criteria_name,
-            description=rule.description,
-            violation_text=rule.violation_text,
-            correct_text=rule.correct_text,
-            score_penalty=rule.score_penalty,
-            feedback_message=rule.feedback_message,
-            category=rule.category
-        )
-        if not rule_obj:
-            raise HTTPException(status_code=500, detail="Failed to create business rule")
-        return rule_obj
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.post("/business-rules", dependencies=[Depends(verify_token)])
+# async def create_business_rule(rule: BusinessRuleCreate):
+#     """Create a new business rule."""
+#     try:
+#         rule_obj = db_manager.create_business_rule(
+#             criteria_name=rule.criteria_name,
+#             description=rule.description,
+#             violation_text=rule.violation_text,
+#             correct_text=rule.correct_text,
+#             score_penalty=rule.score_penalty,
+#             feedback_message=rule.feedback_message,
+#             category=rule.category
+#         )
+#         if not rule_obj:
+#             raise HTTPException(status_code=500, detail="Failed to create business rule")
+#         return rule_obj
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/business-rules/{rule_id}", dependencies=[Depends(verify_token)])
-async def update_business_rule(rule_id: str, rule: BusinessRuleUpdate):
-    """Update an existing business rule."""
-    try:
-        rule_obj = db_manager.update_business_rule(rule_id, rule.dict(exclude_unset=True))
-        if not rule_obj:
-            raise HTTPException(status_code=404, detail="Business rule not found")
-        return rule_obj
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.put("/business-rules/{rule_id}", dependencies=[Depends(verify_token)])
+# async def update_business_rule(rule_id: str, rule: BusinessRuleUpdate):
+#     """Update an existing business rule."""
+#     try:
+#         rule_obj = db_manager.update_business_rule(rule_id, rule.dict(exclude_unset=True))
+#         if not rule_obj:
+#             raise HTTPException(status_code=404, detail="Business rule not found")
+#         return rule_obj
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/business-rules/{rule_id}", dependencies=[Depends(verify_token)])
-async def delete_business_rule(rule_id: str):
-    """Delete a business rule."""
-    try:
-        success = db_manager.delete_business_rule(rule_id)
-        if not success:
-            raise HTTPException(status_code=404, detail="Business rule not found")
-        return {"status": "success", "message": "Business rule deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.delete("/business-rules/{rule_id}", dependencies=[Depends(verify_token)])
+# async def delete_business_rule(rule_id: str):
+#     """Delete a business rule."""
+#     try:
+#         success = db_manager.delete_business_rule(rule_id)
+#         if not success:
+#             raise HTTPException(status_code=404, detail="Business rule not found")
+#         return {"status": "success", "message": "Business rule deleted"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True) 
+    try:
+        # Test DB connection on startup
+        test_db = db_manager.get_all_closers()
+        print(f"✅ Connected to Supabase DB. Found {len(test_db)} closers.")
+    except Exception as e:
+        print(f"❌ Could not connect to Supabase DB: {e}")
+    print("🚀 API server is starting on http://0.0.0.0:5000 ...")
+    uvicorn.run("api:app", host="0.0.0.0", port=5000, reload=True) 
