@@ -85,7 +85,7 @@ class NewCallRequest(BaseModel):
     closer_name: str
     closer_email: str
     transcript_text: Optional[str] = None
-    call_date: Optional[str] = None
+    date_of_call: Optional[str] = None
 
 class CloserEmailRequest(BaseModel):
     closer_email: str
