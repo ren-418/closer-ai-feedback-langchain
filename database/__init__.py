@@ -1,3 +1,5 @@
-from .database_manager import DatabaseManager, db_manager
+from .database_manager import DatabaseManager
 
-__all__ = ['DatabaseManager', 'db_manager'] 
+# Create instance only when needed
+def get_db_manager():
+    return DatabaseManager() 

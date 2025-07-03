@@ -9,7 +9,7 @@ import jwt
 from datetime import datetime, timedelta
 from langchain_script.evaluator import SalesCallEvaluator
 from embeddings.pinecone_store import PineconeManager
-from database.database_manager import db_manager
+from database.database_manager import DatabaseManager
 import json
 
 app = FastAPI(
@@ -37,6 +37,9 @@ security = HTTPBearer()
 # Initialize components
 evaluator = SalesCallEvaluator()
 pinecone_manager = PineconeManager()
+
+# Create database manager instance
+db_manager = DatabaseManager()
 
 # Pydantic models
 class UserLogin(BaseModel):

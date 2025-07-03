@@ -425,5 +425,5 @@ class DatabaseManager:
             print(f"[Database] Error deleting business rule: {e}")
             return False
 
-# Global database manager instance
-db_manager = DatabaseManager() 
+# Note: Global instance removed to prevent connection on import
+# Use DatabaseManager() when needed 
