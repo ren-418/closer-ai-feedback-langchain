@@ -12,6 +12,7 @@ from embeddings.pinecone_store import PineconeManager
 from database.database_manager import DatabaseManager
 import json
 import logging
+import base64
 
 app = FastAPI(
     title="AI Sales Call Evaluator API",
@@ -251,32 +252,43 @@ async def get_call(call_id: str):
 
 @app.post("/calls/new-call")
 async def new_call(request: NewCallRequest):
-    """Create and analyze a new call from JSON (for Google Sheet/automation)."""
+    """Create and analyze a new call from JSON (for Google Sheet/automation). Accepts transcript_text as base64-encoded string."""
     try:
-        
-        print("New call request received")
-        print(request)
+        logging.info("New call request received: %s", request)
         # Validate required fields
         if not request.closer_name or not request.closer_email:
+            logging.warning("Missing closer_name or closer_email in request: %s", request)
             raise HTTPException(status_code=400, detail="closer_name and closer_email are required.")
         if not request.transcript_text or not request.transcript_text.strip():
+            logging.warning("Missing or empty transcript_text in request: %s", request)
             raise HTTPException(status_code=400, detail="transcript_text is required and cannot be empty.")
+        # Decode base64 transcript
+        try:
+            decoded_bytes = base64.b64decode(request.transcript_text)
+            transcript_decoded = decoded_bytes.decode('utf-8')
+        except Exception as decode_err:
+            logging.error("Failed to decode transcript_text from base64: %s", decode_err)
+            raise HTTPException(status_code=400, detail="transcript_text must be valid base64-encoded UTF-8 text.")
         # Optionally validate date_of_call format if needed
         db_manager.create_closer(request.closer_name, request.closer_email)
         call_record = db_manager.create_call(
             closer_name=request.closer_name,
             closer_email=request.closer_email,
-            transcript_text=request.transcript_text,
+            transcript_text=transcript_decoded,
             call_date=request.date_of_call
         )
         if not call_record:
+            logging.error("Failed to create call record for: %s", request)
             raise HTTPException(status_code=500, detail="Failed to create call record")
-        analysis_result = evaluator.evaluate_transcript(request.transcript_text)
+        analysis_result = evaluator.evaluate_transcript(transcript_decoded)
         if analysis_result.get('status') == 'failed':
+            logging.error("Analysis failed: %s", analysis_result.get('error', 'Unknown error'))
             raise HTTPException(status_code=500, detail=analysis_result.get('error', 'Analysis failed'))
-        success = db_manager.update_call_analysis(call_record['id'], analysis_result)   
+        success = db_manager.update_call_analysis(call_record['id'], analysis_result)
         if not success:
+            logging.error("Failed to store analysis results for call_id: %s", call_record['id'])
             raise HTTPException(status_code=500, detail="Failed to store analysis results")
+        logging.info("Call created and analyzed successfully: %s", call_record['id'])
         return {
             "status": "success",
             "call_id": call_record['id']
@@ -284,7 +296,8 @@ async def new_call(request: NewCallRequest):
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.exception("Unexpected error in new_call endpoint")
+        raise HTTPException(status_code=500, detail="Internal server error.")
 
 @app.get("/analytics/leaderboard", dependencies=[Depends(verify_token)])
 async def get_leaderboard():
