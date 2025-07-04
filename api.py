@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -250,21 +250,33 @@ async def get_call(call_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/calls/new-call")
-async def new_call(request: NewCallRequest):
-    """Create and analyze a new call from JSON (for Google Sheet/automation)."""
+async def new_call(request: Request):
+    payload = await request.json()
+    print(payload)
+    # Parse with Pydantic for validation
+    try:
+        data = NewCallRequest(**payload)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid payload: {e}")
+
+    # Now use data.closer_name, data.closer_email, etc.
+    if not data.closer_name or not data.closer_email:
+        raise HTTPException(status_code=400, detail="closer_name and closer_email are required.")
+    if not data.transcript_text or not data.transcript_text.strip():
+        raise HTTPException(status_code=400, detail="transcript_text is required and cannot be empty.")
+
     try:
         print("New call request received")
-        print(request)
-        db_manager.create_closer(request.closer_name, request.closer_email)
+        db_manager.create_closer(data.closer_name, data.closer_email)
         call_record = db_manager.create_call(
-            closer_name=request.closer_name,
-            closer_email=request.closer_email,
-            transcript_text=request.transcript_text,
-            call_date=request.date_of_call
+            closer_name=data.closer_name,
+            closer_email=data.closer_email,
+            transcript_text=data.transcript_text,
+            call_date=data.date_of_call
         )
         if not call_record:
             raise HTTPException(status_code=500, detail="Failed to create call record")
-        analysis_result = evaluator.evaluate_transcript(request.transcript_text)
+        analysis_result = evaluator.evaluate_transcript(data.transcript_text)
         if analysis_result.get('status') == 'failed':
             raise HTTPException(status_code=500, detail=analysis_result.get('error', 'Analysis failed'))
         success = db_manager.update_call_analysis(call_record['id'], analysis_result)   
