@@ -257,11 +257,20 @@ async def get_calls(
     status: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    limit: int = 100
+    limit: int = 100,
+    current_user: Dict = Depends(verify_token)
 ):
-    """Get calls with optional filtering (by closer_email, status, date)."""
+    """Get calls with optional filtering (by closer_email, status, date) and include read status for current admin."""
     try:
-        calls = db_manager.get_calls(closer_email=closer_email, status=status, start_date=start_date, end_date=end_date, limit=limit)
+        admin_email = current_user.get('email')
+        calls = db_manager.get_calls(
+            closer_email=closer_email, 
+            status=status, 
+            start_date=start_date, 
+            end_date=end_date, 
+            limit=limit,
+            admin_email=admin_email
+        )
         return {"calls": calls, "total": len(calls)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -283,10 +292,11 @@ async def get_unread_calls_count(current_user: Dict = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/calls/{call_id}", dependencies=[Depends(verify_token)])
-async def get_call(call_id: str):
-    """Get specific call with full analysis."""
+async def get_call(call_id: str, current_user: Dict = Depends(verify_token)):
+    """Get specific call with full analysis and read status for current admin."""
     try:
-        call = db_manager.get_call_by_id(call_id)
+        admin_email = current_user.get('email')
+        call = db_manager.get_call_by_id(call_id, admin_email)
         if not call:
             raise HTTPException(status_code=404, detail="Call not found")
         return call

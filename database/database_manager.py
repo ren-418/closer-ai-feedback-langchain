@@ -133,8 +133,8 @@ class DatabaseManager:
             print(f"[Database] Error marking calls as read: {e}")
             return False
 
-    def get_call_by_id(self, call_id: str) -> Optional[Dict]:
-        """Get call by ID with all related data."""
+    def get_call_by_id(self, call_id: str, admin_email: str = None) -> Optional[Dict]:
+        """Get call by ID with all related data and read status for admin."""
         try:
             # Get call data
             call_result = self.client.table('calls').select('*').eq('id', call_id).execute()
@@ -142,6 +142,13 @@ class DatabaseManager:
                 return None
             
             call_data = call_result.data[0]
+            
+            # Add read status if admin_email is provided
+            if admin_email:
+                read_result = self.client.table('admin_call_reads').select('call_id').eq('admin_email', admin_email).eq('call_id', call_id).execute()
+                call_data['is_read'] = len(read_result.data) > 0
+            else:
+                call_data['is_read'] = False
             
             # Get chunk analyses
             chunk_result = self.client.table('call_analyses').select('*').eq('call_id', call_id).order('chunk_number').execute()
@@ -157,8 +164,9 @@ class DatabaseManager:
             return None
     
     def get_calls(self, closer_email: str = None, status: str = None, 
-                  start_date: str = None, end_date: str = None, limit: int = 100) -> List[Dict]:
-        """Get calls with optional filtering by closer_email."""
+                  start_date: str = None, end_date: str = None, limit: int = 100, 
+                  admin_email: str = None) -> List[Dict]:
+        """Get calls with optional filtering by closer_email and include read status for admin."""
         try:
             query = self.client.table('calls').select('*').order('created_at', desc=True).limit(limit)
             if closer_email:
@@ -170,7 +178,25 @@ class DatabaseManager:
             if end_date:
                 query = query.lte('call_date', end_date)
             result = query.execute()
-            return result.data
+            calls = result.data
+            
+            # Add read status for each call if admin_email is provided
+            if admin_email and calls:
+                call_ids = [call['id'] for call in calls]
+                
+                # Get read records for this admin
+                read_result = self.client.table('admin_call_reads').select('call_id').eq('admin_email', admin_email).in_('call_id', call_ids).execute()
+                read_call_ids = {read['call_id'] for read in read_result.data}
+                
+                # Add is_read field to each call
+                for call in calls:
+                    call['is_read'] = call['id'] in read_call_ids
+            else:
+                # If no admin_email provided, set is_read to False for all calls
+                for call in calls:
+                    call['is_read'] = False
+            
+            return calls
         except Exception as e:
             print(f"[Database] Error getting calls: {e}")
             return []
