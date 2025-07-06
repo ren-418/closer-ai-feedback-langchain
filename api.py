@@ -90,6 +90,9 @@ class NewCallRequest(BaseModel):
 class CloserEmailRequest(BaseModel):
     closer_email: str
 
+class MarkAsReadRequest(BaseModel):
+    call_ids: List[str]
+
 class BusinessRuleCreate(BaseModel):
     criteria_name: str
     description: str
@@ -271,6 +274,37 @@ async def get_call(call_id: str):
         if not call:
             raise HTTPException(status_code=404, detail="Call not found")
         return call
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/calls/unread-count", dependencies=[Depends(verify_token)])
+async def get_unread_calls_count(closer_email: Optional[str] = None):
+    """Get count of unread analyzed calls, optionally filtered by closer_email."""
+    try:
+        count = db_manager.get_unread_calls_count(closer_email)
+        return {
+            "unread_count": count,
+            "closer_email": closer_email
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/calls/mark-as-read", dependencies=[Depends(verify_token)])
+async def mark_calls_as_read(request: MarkAsReadRequest):
+    """Mark specific calls as read."""
+    try:
+        if not request.call_ids:
+            raise HTTPException(status_code=400, detail="call_ids list cannot be empty")
+        
+        success = db_manager.mark_calls_as_read(request.call_ids)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to mark calls as read")
+        
+        return {
+            "status": "success",
+            "message": f"Marked {len(request.call_ids)} call(s) as read",
+            "marked_calls": request.call_ids
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

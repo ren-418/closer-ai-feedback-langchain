@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS calls (
     letter_grade VARCHAR(5),
     analysis_timestamp TIMESTAMP WITH TIME ZONE,
     total_chunks INT,
-    total_reference_files_used INT
+    total_reference_files_used INT,
+    is_read BOOLEAN DEFAULT false
 );
 
 -- Call analyses table (detailed analysis results)
@@ -112,6 +113,7 @@ CREATE TABLE IF NOT EXISTS criteria_violations (
 CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
 CREATE INDEX IF NOT EXISTS idx_calls_date ON calls(call_date);
 CREATE INDEX IF NOT EXISTS idx_calls_score ON calls(overall_score);
+CREATE INDEX IF NOT EXISTS idx_calls_is_read ON calls(is_read);
 CREATE INDEX IF NOT EXISTS idx_call_analyses_call_id ON call_analyses(call_id);
 CREATE INDEX IF NOT EXISTS idx_performance_metrics_date ON performance_metrics(created_at);
 CREATE INDEX IF NOT EXISTS idx_calls_closer_email ON calls(closer_email);
