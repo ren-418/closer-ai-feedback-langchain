@@ -98,13 +98,10 @@ class DatabaseManager:
             print(f"[Database] Error removing closer: {e}")
             return False
 
-    def get_unread_calls_count(self, closer_email: str = None) -> int:
-        """Get count of unread calls, optionally filtered by closer_email."""
+    def get_unread_calls_count(self) -> int:
+        """Get count of all unread analyzed calls."""
         try:
-            query = self.client.table('calls').select('id', count='exact').eq('is_read', False).eq('status', 'analyzed')
-            if closer_email:
-                query = query.eq('closer_email', closer_email)
-            result = query.execute()
+            result = self.client.table('calls').select('id', count='exact').eq('is_read', False).eq('status', 'analyzed').execute()
             return result.count if result.count is not None else 0
         except Exception as e:
             print(f"[Database] Error getting unread calls count: {e}")

@@ -278,13 +278,12 @@ async def get_call(call_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/calls/unread-count", dependencies=[Depends(verify_token)])
-async def get_unread_calls_count(closer_email: Optional[str] = None):
-    """Get count of unread analyzed calls, optionally filtered by closer_email."""
+async def get_unread_calls_count():
+    """Get count of all unread analyzed calls."""
     try:
-        count = db_manager.get_unread_calls_count(closer_email)
+        count = db_manager.get_unread_calls_count()
         return {
-            "unread_count": count,
-            "closer_email": closer_email
+            "unread_count": count
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
