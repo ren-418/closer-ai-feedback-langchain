@@ -211,6 +211,34 @@ class DatabaseManager:
                     'team_focus_areas': top_phrases(focus_areas)
                 }
 
+            # --- Calculate time-based metrics ---
+            def calculate_period_metrics(filtered_calls):
+                if not filtered_calls:
+                    return {
+                        'call_count': 0,
+                        'average_score': 0,
+                        'analyzed_calls': 0
+                    }
+                
+                analyzed_calls = [call for call in filtered_calls if call.get('status') == 'analyzed']
+                scores = [call.get('overall_score', 0) for call in analyzed_calls if call.get('overall_score')]
+                
+                return {
+                    'call_count': len(filtered_calls),
+                    'average_score': round(sum(scores) / len(scores), 2) if scores else 0,
+                    'analyzed_calls': len(analyzed_calls)
+                }
+            
+            # Calculate metrics for each time period
+            period_metrics = {}
+            for period, filter_fn in periods.items():
+                filtered = [call for call in calls if filter_fn(parse_date(call.get('call_date')))]
+                period_metrics[period] = calculate_period_metrics(filtered)
+            
+            # Calculate total metrics
+            total_analyzed_calls = [call for call in calls if call.get('status') == 'analyzed']
+            total_scores = [call.get('overall_score', 0) for call in total_analyzed_calls if call.get('overall_score')]
+            
             coaching_insights = {}
             for period, filter_fn in periods.items():
                 filtered = [call for call in calls if filter_fn(parse_date(call.get('call_date')))]
@@ -219,6 +247,9 @@ class DatabaseManager:
             return {
                 'team_average': round(team_average, 2),
                 'total_calls': len(calls),
+                'total_analyzed_calls': len(total_analyzed_calls),
+                'total_average_score': round(sum(total_scores) / len(total_scores), 2) if total_scores else 0,
+                'period_metrics': period_metrics,
                 'leaderboard': leaderboard,
                 'top_performers': leaderboard[:3] if len(leaderboard) >= 3 else leaderboard,
                 'coaching_insights': coaching_insights
