@@ -259,7 +259,10 @@ async def get_leaderboard():
             "top_performers": analytics.get('top_performers', []),
             "coaching_insights": analytics.get('coaching_insights', {}),
             "team_average": analytics.get('team_average', 0),
-            "total_calls": analytics.get('total_calls', 0)
+            "total_calls": analytics.get('total_calls', 0),
+            "total_analyzed_calls": analytics.get('total_analyzed_calls', 0),
+            "total_average_score": analytics.get('total_average_score', 0),
+            "period_metrics": analytics.get('period_metrics', {})
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
