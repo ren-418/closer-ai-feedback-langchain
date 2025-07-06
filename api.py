@@ -266,17 +266,6 @@ async def get_calls(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/calls/{call_id}", dependencies=[Depends(verify_token)])
-async def get_call(call_id: str):
-    """Get specific call with full analysis."""
-    try:
-        call = db_manager.get_call_by_id(call_id)
-        if not call:
-            raise HTTPException(status_code=404, detail="Call not found")
-        return call
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/calls/unread-count", dependencies=[Depends(verify_token)])
 async def get_unread_calls_count():
     """Get count of all unread analyzed calls."""
@@ -285,6 +274,17 @@ async def get_unread_calls_count():
         return {
             "unread_count": count
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/calls/{call_id}", dependencies=[Depends(verify_token)])
+async def get_call(call_id: str):
+    """Get specific call with full analysis."""
+    try:
+        call = db_manager.get_call_by_id(call_id)
+        if not call:
+            raise HTTPException(status_code=404, detail="Call not found")
+        return call
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
