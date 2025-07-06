@@ -125,9 +125,9 @@ class DatabaseManager:
             if not call_ids:
                 return True
             
-            # Insert read records for this admin
+            # Use upsert to handle existing records gracefully
             read_records = [{'admin_email': admin_email, 'call_id': call_id} for call_id in call_ids]
-            self.client.table('admin_call_reads').insert(read_records).execute()
+            self.client.table('admin_call_reads').upsert(read_records, on_conflict='admin_email,call_id').execute()
             return True
         except Exception as e:
             print(f"[Database] Error marking calls as read: {e}")
