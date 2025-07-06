@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -13,6 +13,7 @@ from database.database_manager import DatabaseManager
 import json
 import logging
 import base64
+import requests
 
 app = FastAPI(
     title="AI Sales Call Evaluator API",
@@ -347,24 +348,24 @@ async def get_leaderboard():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/calls/new-call")
-async def new_call(request: NewCallRequest):
-    """Create and analyze a new call from JSON (for Google Sheet/automation). Accepts transcript_text as base64-encoded string."""
+async def new_call(request: NewCallRequest, background_tasks: BackgroundTasks):
+    """Create and analyze a new call from JSON (for Google Sheet/automation). Accepts transcript_text as base64-encoded string. Responds immediately and processes analysis in the background."""
     try:
         logging.info("New call request received: %s", request)
         # Validate required fields
         if not request.closer_name or not request.closer_email:
             logging.warning("Missing closer_name or closer_email in request: %s", request)
-            raise HTTPException(status_code=400, detail="closer_name and closer_email are required.")
+            return {"status": "error", "detail": "closer_name and closer_email are required."}
         if not request.transcript_text or not request.transcript_text.strip():
             logging.warning("Missing or empty transcript_text in request: %s", request)
-            raise HTTPException(status_code=400, detail="transcript_text is required and cannot be empty.")
+            return {"status": "error", "detail": "transcript_text is required and cannot be empty."}
         # Decode base64 transcript
         try:
             decoded_bytes = base64.b64decode(request.transcript_text)
             transcript_decoded = decoded_bytes.decode('utf-8')
         except Exception as decode_err:
             logging.error("Failed to decode transcript_text from base64: %s", decode_err)
-            raise HTTPException(status_code=400, detail="transcript_text must be valid base64-encoded UTF-8 text.")
+            return {"status": "error", "detail": "transcript_text must be valid base64-encoded UTF-8 text."}
         # Optionally validate date_of_call format if needed
         db_manager.create_closer(request.closer_name, request.closer_email)
         call_record = db_manager.create_call(
@@ -375,27 +376,38 @@ async def new_call(request: NewCallRequest):
         )
         if not call_record:
             logging.error("Failed to create call record for: %s", request)
-            raise HTTPException(status_code=500, detail="Failed to create call record")
-        analysis_result = evaluator.evaluate_transcript(transcript_decoded)
-        if analysis_result.get('status') == 'failed':
-            logging.error("Analysis failed: %s", analysis_result.get('error', 'Unknown error'))
-            raise HTTPException(status_code=500, detail=analysis_result.get('error', 'Analysis failed'))
-        success = db_manager.update_call_analysis(call_record['id'], analysis_result)
-        if not success:
-            logging.error("Failed to store analysis results for call_id: %s", call_record['id'])
-            raise HTTPException(status_code=500, detail="Failed to store analysis results")
-        logging.info("Call created and analyzed successfully: %s", call_record['id'])
+            return {"status": "error", "detail": "Failed to create call record"}
+        # Launch background analysis and notification
+        background_tasks.add_task(analyze_and_notify_make, call_record['id'], request.closer_name, request.closer_email, transcript_decoded)
+        logging.info("Call created, analysis scheduled in background: %s", call_record['id'])
         return {
-            "status": "success",
+            "status": "pending",
             "call_id": call_record['id']
         }
-    except HTTPException as e:
-        raise e
     except Exception as e:
         logging.exception("Unexpected error in new_call endpoint")
-        raise HTTPException(status_code=500, detail="Internal server error.")
+        return {"status": "error", "detail": "Internal server error."}
 
+# Helper function for background analysis and Make.com notification
+MAKE_WEBHOOK_URL = "https://hook.us2.make.com/vm4hneqqbptwk27o7grk83d99vpgbjmi"
 
+def analyze_and_notify_make(call_id, closer_name, closer_email, transcript_decoded):
+    try:
+        analysis_result = evaluator.evaluate_transcript(transcript_decoded)
+        db_manager.update_call_analysis(call_id, analysis_result)
+        payload = {
+            "call_id": call_id,
+            "closer_name": closer_name,
+            "closer_email": closer_email,
+            "status": "success"
+        }
+        try:
+            requests.post(MAKE_WEBHOOK_URL, json=payload, timeout=10)
+            logging.info(f"Successfully notified Make.com webhook for call_id: {call_id}")
+        except Exception as notify_err:
+            logging.error(f"Failed to notify Make.com webhook: {notify_err}")
+    except Exception as e:
+        logging.error(f"Background analysis or notification failed for call_id {call_id}: {e}")
 
 # Business Rules Management endpoints
 # @app.get("/business-rules", dependencies=[Depends(verify_token)])
