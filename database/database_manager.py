@@ -83,6 +83,21 @@ class DatabaseManager:
             print(f"[Database] Error getting closer by email: {e}")
             return None
 
+    def remove_closer(self, email: str) -> bool:
+        """Remove a closer by email (soft delete by setting is_active to false)."""
+        try:
+            # First check if closer exists
+            existing = self.client.table('closers').select('*').eq('email', email).execute()
+            if not existing.data:
+                return False
+            
+            # Soft delete by setting is_active to false
+            result = self.client.table('closers').update({'is_active': False}).eq('email', email).execute()
+            return True
+        except Exception as e:
+            print(f"[Database] Error removing closer: {e}")
+            return False
+
     def get_call_by_id(self, call_id: str) -> Optional[Dict]:
         """Get call by ID with all related data."""
         try:

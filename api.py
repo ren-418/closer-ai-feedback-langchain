@@ -222,6 +222,31 @@ async def get_closer_by_email(request: CloserEmailRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/closers/remove", dependencies=[Depends(verify_token)])
+async def remove_closer(request: CloserEmailRequest):
+    """Remove a closer by email (soft delete)."""
+    try:
+        # First check if closer exists
+        closer = db_manager.get_closer_by_email(request.closer_email)
+        if not closer:
+            raise HTTPException(status_code=404, detail="Closer not found")
+        
+        # Remove the closer
+        success = db_manager.remove_closer(request.closer_email)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to remove closer")
+        
+        return {
+            "status": "success",
+            "message": f"Closer {request.closer_email} has been removed",
+            "removed_closer": {
+                "email": request.closer_email,
+                "name": closer.get('name', 'Unknown')
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Call management endpoints
 @app.get("/calls", dependencies=[Depends(verify_token)])
 async def get_calls(
