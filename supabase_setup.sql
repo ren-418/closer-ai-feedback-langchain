@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS calls (
     is_read BOOLEAN DEFAULT false
 );
 
+-- Admin call reads tracking table
+CREATE TABLE IF NOT EXISTS admin_call_reads (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_email VARCHAR(255) NOT NULL,
+    call_id UUID REFERENCES calls(id) ON DELETE CASCADE,
+    read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(admin_email, call_id)
+);
+
 -- Call analyses table (detailed analysis results)
 CREATE TABLE IF NOT EXISTS call_analyses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -113,7 +122,8 @@ CREATE TABLE IF NOT EXISTS criteria_violations (
 CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
 CREATE INDEX IF NOT EXISTS idx_calls_date ON calls(call_date);
 CREATE INDEX IF NOT EXISTS idx_calls_score ON calls(overall_score);
-CREATE INDEX IF NOT EXISTS idx_calls_is_read ON calls(is_read);
+CREATE INDEX IF NOT EXISTS idx_admin_call_reads_admin ON admin_call_reads(admin_email);
+CREATE INDEX IF NOT EXISTS idx_admin_call_reads_call ON admin_call_reads(call_id);
 CREATE INDEX IF NOT EXISTS idx_call_analyses_call_id ON call_analyses(call_id);
 CREATE INDEX IF NOT EXISTS idx_performance_metrics_date ON performance_metrics(created_at);
 CREATE INDEX IF NOT EXISTS idx_calls_closer_email ON calls(closer_email);
@@ -174,6 +184,10 @@ CREATE POLICY "Enable update access for all users" ON closers FOR UPDATE USING (
 CREATE POLICY "Enable read access for all users" ON calls FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON calls FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update access for all users" ON calls FOR UPDATE USING (true);
+
+CREATE POLICY "Enable read access for all users" ON admin_call_reads FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all users" ON admin_call_reads FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all users" ON admin_call_reads FOR UPDATE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON call_analyses FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON call_analyses FOR INSERT WITH CHECK (true);

@@ -98,22 +98,36 @@ class DatabaseManager:
             print(f"[Database] Error removing closer: {e}")
             return False
 
-    def get_unread_calls_count(self) -> int:
-        """Get count of all unread analyzed calls."""
+    def get_unread_calls_count(self, admin_email: str) -> int:
+        """Get count of unread analyzed calls for specific admin."""
         try:
-            result = self.client.table('calls').select('id', count='exact').eq('is_read', False).eq('status', 'analyzed').execute()
-            return result.count if result.count is not None else 0
+            # Get all analyzed calls
+            analyzed_calls = self.client.table('calls').select('id').eq('status', 'analyzed').execute()
+            if not analyzed_calls.data:
+                return 0
+            
+            call_ids = [call['id'] for call in analyzed_calls.data]
+            
+            # Get calls that this admin has read
+            read_calls = self.client.table('admin_call_reads').select('call_id').eq('admin_email', admin_email).in_('call_id', call_ids).execute()
+            read_call_ids = [read['call_id'] for read in read_calls.data]
+            
+            # Count unread calls (analyzed calls not in read list)
+            unread_count = len(call_ids) - len(read_call_ids)
+            return max(0, unread_count)
         except Exception as e:
             print(f"[Database] Error getting unread calls count: {e}")
             return 0
 
-    def mark_calls_as_read(self, call_ids: List[str]) -> bool:
-        """Mark specific calls as read."""
+    def mark_calls_as_read(self, admin_email: str, call_ids: List[str]) -> bool:
+        """Mark specific calls as read for specific admin."""
         try:
             if not call_ids:
                 return True
             
-            result = self.client.table('calls').update({'is_read': True}).in_('id', call_ids).execute()
+            # Insert read records for this admin
+            read_records = [{'admin_email': admin_email, 'call_id': call_id} for call_id in call_ids]
+            self.client.table('admin_call_reads').insert(read_records).execute()
             return True
         except Exception as e:
             print(f"[Database] Error marking calls as read: {e}")

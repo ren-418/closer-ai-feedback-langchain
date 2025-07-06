@@ -267,12 +267,17 @@ async def get_calls(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/calls/unread-count", dependencies=[Depends(verify_token)])
-async def get_unread_calls_count():
-    """Get count of all unread analyzed calls."""
+async def get_unread_calls_count(current_user: Dict = Depends(verify_token)):
+    """Get count of unread analyzed calls for the current admin."""
     try:
-        count = db_manager.get_unread_calls_count()
+        admin_email = current_user.get('email')
+        if not admin_email:
+            raise HTTPException(status_code=400, detail="Admin email not found in token")
+        
+        count = db_manager.get_unread_calls_count(admin_email)
         return {
-            "unread_count": count
+            "unread_count": count,
+            "admin_email": admin_email
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -289,20 +294,26 @@ async def get_call(call_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/calls/mark-as-read", dependencies=[Depends(verify_token)])
-async def mark_calls_as_read(request: MarkAsReadRequest):
-    """Mark specific calls as read."""
+async def mark_calls_as_read(request: MarkAsReadRequest, current_user: Dict = Depends(verify_token)):
+    """Mark specific calls as read for the current admin."""
     try:
         if not request.call_ids:
             raise HTTPException(status_code=400, detail="call_ids list cannot be empty")
         
-        success = db_manager.mark_calls_as_read(request.call_ids)
+        # Use admin email from token for security
+        admin_email = current_user.get('email')
+        if not admin_email:
+            raise HTTPException(status_code=400, detail="Admin email not found in token")
+        
+        success = db_manager.mark_calls_as_read(admin_email, request.call_ids)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to mark calls as read")
         
         return {
             "status": "success",
             "message": f"Marked {len(request.call_ids)} call(s) as read",
-            "marked_calls": request.call_ids
+            "marked_calls": request.call_ids,
+            "admin_email": admin_email
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
