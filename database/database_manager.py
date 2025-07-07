@@ -1,6 +1,6 @@
 import os
 from typing import Dict, List, Optional, Any
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 import json
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -335,7 +335,7 @@ class DatabaseManager:
             return {}
     
     def create_call(self, closer_name: str, transcript_text: str, call_date: str = None, closer_email: str = None) -> Dict:
-        """Create a new call record, always storing closer_email."""
+        """Create a new call record, always storing closer_email. Stores call_date as UTC ISO format."""
         try:
             call_data = {
                 'closer_name': closer_name,
@@ -344,8 +344,21 @@ class DatabaseManager:
                 'transcript_length': len(transcript_text),
                 'status': 'new'
             }
+            # Handle call_date as UTC
             if call_date:
-                call_data['call_date'] = call_date
+                try:
+                    # Try parsing as ISO, else fallback to naive parsing
+                    dt = datetime.fromisoformat(call_date)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    else:
+                        dt = dt.astimezone(timezone.utc)
+                    call_data['call_date'] = dt.isoformat()
+                except Exception:
+                    # If parsing fails, use current UTC
+                    call_data['call_date'] = datetime.now(timezone.utc).isoformat()
+            else:
+                call_data['call_date'] = datetime.now(timezone.utc).isoformat()
             result = self.client.table('calls').insert(call_data).execute()
             return result.data[0] if result.data else None
         except Exception as e:

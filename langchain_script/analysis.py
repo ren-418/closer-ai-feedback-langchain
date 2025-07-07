@@ -243,7 +243,22 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '    "missed_opportunities": ["opportunity 1", "opportunity 2"],\n'
         '    "critical_moments": ["moment 1", "moment 2"]\n'
         '  }\n'
-        "}"
+        "}\n"
+        "\nSCORING GUIDELINES:\n"
+        "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
+        "\nGRADE RULES (for letter_grade):\n"
+        "94-100  = A\n"
+        "90-93.9 = A-\n"
+        "87-89.9 = B+\n"
+        "84-86.9 = B\n"
+        "80-83.9 = B-\n"
+        "77-79.9 = C+\n"
+        "74-76.9 = C\n"
+        "70-73.9 = C-\n"
+        "67-69.9 = D+\n"
+        "64-66.9 = D\n"
+        "60-63.9 = D-\n"
+        "0-59.9  = E."
     )
     
     # Build final prompt
@@ -486,7 +501,22 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         '    "closing_effectiveness": 8,\n'
         '    "overall_performance": 8\n'
         '  }\n'
-        "}"
+        "}\n"
+        "\nSCORING GUIDELINES:\n"
+        "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
+        "\nGRADE RULES (for letter_grade):\n"
+        "94-100  = A\n"
+        "90-93.9 = A-\n"
+        "87-89.9 = B+\n"
+        "84-86.9 = B\n"
+        "80-83.9 = B-\n"
+        "77-79.9 = C+\n"
+        "74-76.9 = C\n"
+        "70-73.9 = C-\n"
+        "67-69.9 = D+\n"
+        "64-66.9 = D\n"
+        "60-63.9 = D-\n"
+        "0-59.9  = E."
     )
     # Check token count for aggregation prompt
     prompt_tokens = calculate_prompt_tokens(prompt)
