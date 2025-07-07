@@ -347,18 +347,11 @@ class DatabaseManager:
             # Handle call_date as UTC
             if call_date:
                 try:
-                    # Try parsing as ISO, else fallback to naive parsing
-                    dt = datetime.fromisoformat(call_date)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    else:
-                        dt = dt.astimezone(timezone.utc)
-                    call_data['call_date'] = dt.isoformat()
+                   
+                    call_data['call_date'] = call_date
                 except Exception:
                     # If parsing fails, use current UTC
-                    call_data['call_date'] = datetime.now(timezone.utc).isoformat()
-            else:
-                call_data['call_date'] = datetime.now(timezone.utc).isoformat()
+                    call_data['call_date'] = datetime.now(timezone.est).isoformat()
             result = self.client.table('calls').insert(call_data).execute()
             return result.data[0] if result.data else None
         except Exception as e:
