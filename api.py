@@ -24,7 +24,7 @@ app = FastAPI(
 # Configure CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Update this with your frontend URL in production
+    allow_origins=["https://ai-sales-call-evaluator.vercel.app","http://localhost:5173" ,"https://vote-mentioned-keeping-indonesia.trycloudflare.com"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
