@@ -85,6 +85,7 @@ class TranscriptResponse(BaseModel):
 class NewCallRequest(BaseModel):
     closer_name: str
     closer_email: str
+    lead_name: str
     transcript_text: Optional[str] = None
     date_of_call: Optional[str] = None
 
@@ -371,6 +372,7 @@ async def new_call(request: NewCallRequest, background_tasks: BackgroundTasks):
         call_record = db_manager.create_call(
             closer_name=request.closer_name,
             closer_email=request.closer_email,
+            lead_name = request.lead_name,
             transcript_text=transcript_decoded,
             call_date=request.date_of_call
         )
@@ -378,7 +380,7 @@ async def new_call(request: NewCallRequest, background_tasks: BackgroundTasks):
             logging.error("Failed to create call record for: %s", request)
             return {"status": "error", "detail": "Failed to create call record"}
         # Launch background analysis and notification
-        background_tasks.add_task(analyze_and_notify_make, call_record['id'], request.closer_name, request.closer_email, transcript_decoded)
+        background_tasks.add_task(analyze_and_notify_make, call_record['id'], request.closer_name, request.closer_email,request.lead_name, transcript_decoded)
         logging.info("Call created, analysis scheduled in background: %s", call_record['id'])
         return {
             "status": "pending",
@@ -391,7 +393,7 @@ async def new_call(request: NewCallRequest, background_tasks: BackgroundTasks):
 # Helper function for background analysis and Make.com notification
 MAKE_WEBHOOK_URL = "https://hook.us2.make.com/vm4hneqqbptwk27o7grk83d99vpgbjmi"
 
-def analyze_and_notify_make(call_id, closer_name, closer_email, transcript_decoded):
+def analyze_and_notify_make(call_id, closer_name, closer_email, lead_name,transcript_decoded):
     try:
         analysis_result = evaluator.evaluate_transcript(transcript_decoded)
         db_manager.update_call_analysis(call_id, analysis_result)
@@ -399,6 +401,7 @@ def analyze_and_notify_make(call_id, closer_name, closer_email, transcript_decod
             "call_id": call_id,
             "closer_name": closer_name,
             "closer_email": closer_email,
+            "lead_name": lead_name,
             "status": "success"
         }
         try:

@@ -334,12 +334,13 @@ class DatabaseManager:
             print(f"[Database] Error getting team analytics: {e}")
             return {}
     
-    def create_call(self, closer_name: str, transcript_text: str, call_date: str = None, closer_email: str = None) -> Dict:
+    def create_call(self, closer_name: str, transcript_text: str, lead_name: str, call_date: str = None, closer_email: str = None) -> Dict:
         """Create a new call record, always storing closer_email. Stores call_date as UTC ISO format."""
         try:
             call_data = {
                 'closer_name': closer_name,
                 'closer_email': closer_email,
+                'lead_name': lead_name,
                 'transcript_text': transcript_text,
                 'transcript_length': len(transcript_text),
                 'status': 'new'
@@ -347,7 +348,6 @@ class DatabaseManager:
             # Handle call_date as UTC
             if call_date:
                 try:
-                   
                     call_data['call_date'] = call_date
                 except Exception:
                     # If parsing fails, use current UTC
