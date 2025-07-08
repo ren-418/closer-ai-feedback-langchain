@@ -405,6 +405,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         f"{json.dumps(chunk_summaries, indent=2)}\n\n"
         "REFERENCE FILES USED:\n"
         f"{', '.join(all_reference_files)}\n\n"
+        "Note: If there is a really good and valid reason for above reference, give it a clear high score. However, if there is something exact , clear wrong,  cut the many score. I want most calls to have a clear score, not a lukewarm score."
         f"{rules_section}"
         "Create a comprehensive final report that includes:\n"
         "1. **Executive Summary**: Overall performance assessment\n"

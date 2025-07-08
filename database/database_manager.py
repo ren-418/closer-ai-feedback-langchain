@@ -208,7 +208,9 @@ class DatabaseManager:
             closer_stats = {}
             for call in calls:
                 closer_email = call.get('closer_email', 'Unknown')
-                score = call.get('overall_score', 0)
+                score = call.get('overall_score')
+                if score is None:
+                    score = 0
                 if closer_email not in closer_stats:
                     closer_stats[closer_email] = {
                         'email': closer_email,
@@ -232,7 +234,7 @@ class DatabaseManager:
                     'recent_trend': stats['scores'][-5:] if len(stats['scores']) > 5 else stats['scores']
                 })
             leaderboard.sort(key=lambda x: x['average_score'], reverse=True)
-            all_scores = [call.get('overall_score', 0) for call in calls if call.get('overall_score')]
+            all_scores = [call.get('overall_score') if call.get('overall_score') is not None else 0 for call in calls]
             team_average = sum(all_scores) / len(all_scores) if all_scores else 0
 
             # --- Coaching Insights by Period ---
@@ -295,10 +297,8 @@ class DatabaseManager:
                         'average_score': 0,
                         'analyzed_calls': 0
                     }
-                
                 analyzed_calls = [call for call in filtered_calls if call.get('status') == 'analyzed']
-                scores = [call.get('overall_score', 0) for call in analyzed_calls if call.get('overall_score')]
-                
+                scores = [call.get('overall_score') if call.get('overall_score') is not None else 0 for call in analyzed_calls]
                 return {
                     'call_count': len(filtered_calls),
                     'average_score': round(sum(scores) / len(scores), 2) if scores else 0,
@@ -313,7 +313,7 @@ class DatabaseManager:
             
             # Calculate total metrics
             total_analyzed_calls = [call for call in calls if call.get('status') == 'analyzed']
-            total_scores = [call.get('overall_score', 0) for call in total_analyzed_calls if call.get('overall_score')]
+            total_scores = [call.get('overall_score') if call.get('overall_score') is not None else 0 for call in total_analyzed_calls]
             
             coaching_insights = {}
             for period, filter_fn in periods.items():
