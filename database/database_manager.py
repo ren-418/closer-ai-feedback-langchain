@@ -490,53 +490,51 @@ class DatabaseManager:
             return {}
 
     # Business Rules Management
-    # def get_business_rules(self) -> List[Dict]:
-    #     """Get all active business rules."""
-    #     try:
-    #         result = self.client.table('evaluation_criteria').select('*').eq('is_active', True).order('created_at', desc=True).execute()
-    #         return result.data
-    #     except Exception as e:
-    #         print(f"[Database] Error getting business rules: {e}")
-    #         return []
-    
-    # def create_business_rule(self, criteria_name: str, description: str, violation_text: str, 
-    #                        correct_text: str = None, score_penalty: int = -2, 
-    #                        feedback_message: str = None, category: str = "general") -> Dict:
-    #     """Create a new business rule."""
-    #     try:
-    #         rule_data = {
-    #             'criteria_name': criteria_name,
-    #             'description': description,
-    #             'violation_text': violation_text,
-    #             'correct_text': correct_text,
-    #             'score_penalty': score_penalty,
-    #             'feedback_message': feedback_message or f"Violation: {violation_text}",
-    #             'category': category,
-    #             'is_active': True
-    #         }
-    #         result = self.client.table('evaluation_criteria').insert(rule_data).execute()
-    #         return result.data[0] if result.data else None
-    #     except Exception as e:
-    #         print(f"[Database] Error creating business rule: {e}")
-    #         return None
-    
-    # def update_business_rule(self, rule_id: str, update_data: Dict) -> Dict:
-    #     """Update an existing business rule."""
-    #     try:
-    #         result = self.client.table('evaluation_criteria').update(update_data).eq('id', rule_id).execute()
-    #         return result.data[0] if result.data else None
-    #     except Exception as e:
-    #         print(f"[Database] Error updating business rule: {e}")
-    #         return None
-    
-    # def delete_business_rule(self, rule_id: str) -> bool:
-    #     """Delete a business rule (soft delete by setting is_active to false)."""
-    #     try:
-    #         self.client.table('evaluation_criteria').update({'is_active': False}).eq('id', rule_id).execute()
-    #         return True
-    #     except Exception as e:
-    #         print(f"[Database] Error deleting business rule: {e}")
-    #         return False
+    def get_business_rules(self) -> List[Dict]:
+        """Get all active business rules."""
+        try:
+            result = self.client.table('evaluation_criteria').select('*').eq('is_active', True).order('created_at', desc=True).execute()
+            return result.data
+        except Exception as e:
+            print(f"[Database] Error getting business rules: {e}")
+            return []
+
+    def create_business_rule(self, criteria_name: str, description: str, violation_text: str, correct_text: str = None, score_penalty: int = -2, feedback_message: str = None, category: str = "general") -> Dict:
+        """Create a new business rule."""
+        try:
+            rule_data = {
+                'criteria_name': criteria_name,
+                'description': description,
+                'violation_text': violation_text,
+                'correct_text': correct_text,
+                'score_penalty': score_penalty,
+                'feedback_message': feedback_message or f"Violation: {violation_text}",
+                'category': category,
+                'is_active': True
+            }
+            result = self.client.table('evaluation_criteria').insert(rule_data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"[Database] Error creating business rule: {e}")
+            return None
+
+    def update_business_rule(self, rule_id: str, update_data: Dict) -> Dict:
+        """Update an existing business rule."""
+        try:
+            result = self.client.table('evaluation_criteria').update(update_data).eq('id', rule_id).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"[Database] Error updating business rule: {e}")
+            return None
+
+    def delete_business_rule(self, rule_id: str) -> bool:
+        """Delete a business rule (soft delete by setting is_active to false)."""
+        try:
+            self.client.table('evaluation_criteria').update({'is_active': False}).eq('id', rule_id).execute()
+            return True
+        except Exception as e:
+            print(f"[Database] Error deleting business rule: {e}")
+            return False
 
 # Note: Global instance removed to prevent connection on import
 # Use DatabaseManager() when needed 

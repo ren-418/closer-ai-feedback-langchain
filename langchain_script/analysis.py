@@ -579,6 +579,20 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
             }
         }
 
+def format_rules(business_rules: List[Dict]) -> str:
+    """Format business rules as a compact numbered list."""
+    lines = []
+    for i, rule in enumerate(business_rules, 1):
+        lines.append(f"{i}. {rule.get('criteria_name', 'Rule')}: {rule.get('description', '')} (Penalty: {rule.get('score_penalty', 0)})")
+    return '\n'.join(lines)
+
+def summarize_rules(business_rules: List[Dict]) -> str:
+    """Summarize business rules into a compact summary if prompt is too long."""
+    topics = set()
+    for rule in business_rules:
+        topics.add(rule.get('category', 'general'))
+    return f"There are {len(business_rules)} business rules covering: {', '.join(sorted(topics))}. Pay special attention to main contents just critical criteria."
+
 if __name__ == "__main__":
     # Example usage for testing
     sample_text = (
