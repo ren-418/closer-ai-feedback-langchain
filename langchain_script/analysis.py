@@ -569,6 +569,10 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "0-59.9  = E."
     )
     print("businness rules from db :::", "violations collected from chunks" if all_violations else "<none>")
+    with open("prompt_output.txt", "w", encoding="utf-8") as f:
+        f.write(prompt)
+
+    print("Final prompt saved to prompt_output.txt ✅")
     # Check token count and summarize rules if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
