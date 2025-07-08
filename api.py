@@ -404,7 +404,7 @@ def analyze_and_notify_make(call_id, closer_name, closer_email, lead_name,transc
             "closer_name": closer_name,
             "closer_email": closer_email,
             "lead_name": lead_name,
-            "transcript_link": transcript_link
+            "transcript_link": transcript_link,
             "status": "success"
         }
         try:

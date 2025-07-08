@@ -334,7 +334,7 @@ class DatabaseManager:
             print(f"[Database] Error getting team analytics: {e}")
             return {}
     
-    def create_call(self, closer_name: str, transcript_text: str,transcript_link=str, lead_name: str, call_date: str = None, closer_email: str = None) -> Dict:
+    def create_call(self, closer_name: str, transcript_text: str,transcript_link:str, lead_name: str, call_date: str = None, closer_email: str = None) -> Dict:
         """Create a new call record, always storing closer_email. Stores call_date as UTC ISO format."""
         try:
             call_data = {
