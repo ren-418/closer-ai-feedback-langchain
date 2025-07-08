@@ -27,7 +27,7 @@ class SalesCallEvaluator:
             print(f"[Evaluator] Transcript length: {len(transcript)} characters")
             
             # At the start of evaluate_transcript, fetch business rules
-            business_rules = db_manager.get_business_rules()
+            business_rules = self.db_manager.get_business_rules()
             
             # Chunk and embed the transcript
             print("[Evaluator] Chunking and embedding transcript...")
