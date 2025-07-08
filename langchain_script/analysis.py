@@ -12,19 +12,19 @@ openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 # Initialize Pinecone manager
 pinecone_manager = PineconeManager()
 
-MAX_CHUNK_TOKENS = 3000
-CHUNK_OVERLAP_TOKENS = 300
+MAX_CHUNK_TOKENS = 12_000
+CHUNK_OVERLAP_TOKENS = 500  # Slightly increase overlap for context
 CONTEXT_WINDOW_TOKENS = 300  # Reduced for safety
-MAX_REF_CHUNKS = 3  # Increased for better comparison
-MAX_REF_TOKENS = 600  # Increased for more context
-MAX_TOTAL_PROMPT_TOKENS = 8000
+MAX_REF_CHUNKS = 8
+MAX_REF_TOKENS = 4_000
+MAX_TOTAL_PROMPT_TOKENS = 100_000
 MAX_RESPONSE_TOKENS = 2500
   # Increased for longer aggregation responses
 
 # Use OpenAI's tiktoken for accurate token counting
-encoding = tiktoken.encoding_for_model("gpt-4")
+encoding = tiktoken.encoding_for_model("gpt-4o")
 
-CONTEXT_WINDOW = 8192
+CONTEXT_WINDOW = 128_000
 SAFETY_BUFFER = 128  # For OpenAI chat message overhead
 
 def chunk_text_by_tokens(text: str, max_tokens: int = MAX_CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP_TOKENS) -> List[List[int]]:
@@ -308,7 +308,7 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
         if allowed_max_tokens < MAX_RESPONSE_TOKENS:
             print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window (with buffer).")
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature,
             max_tokens=allowed_max_tokens
@@ -543,7 +543,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict]) -> Dict:
         print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window (with buffer).")
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=allowed_max_tokens

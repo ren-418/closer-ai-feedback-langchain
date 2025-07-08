@@ -15,7 +15,7 @@ MAX_CHUNK_TOKENS = 3000
 CHUNK_OVERLAP_TOKENS = 300
 
 # Use OpenAI's tiktoken for accurate token counting
-encoding = tiktoken.encoding_for_model("gpt-4")
+encoding = tiktoken.encoding_for_model("gpt-4o")
 
 def chunk_text_by_tokens(text: str, max_tokens: int = MAX_CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP_TOKENS) -> List[str]:
     """

@@ -47,7 +47,8 @@ class SalesCallEvaluator:
                     chunk_data['chunk_text'],
                     similar_chunks,
                     chunk_data['context_prev'],
-                    chunk_data['context_next']
+                    chunk_data['context_next'],
+                    model="gpt-4o"
                 )
                 
                 chunk_analyses.append({
@@ -59,7 +60,7 @@ class SalesCallEvaluator:
             
             # Aggregate all chunk analyses into final report
             print("[Evaluator] Aggregating chunk analyses into final report...")
-            final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses])
+            final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses], model="gpt-4o")
             
             print("[Evaluator] Evaluation complete.")
             
