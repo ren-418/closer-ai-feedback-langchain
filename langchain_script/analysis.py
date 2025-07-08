@@ -713,10 +713,15 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         }
 
 def format_rules(business_rules: List[Dict]) -> str:
-    """Format business rules as a compact numbered list."""
+    """Format business rules as a compact numbered list, including violation_text and correct_text."""
     lines = []
     for i, rule in enumerate(business_rules, 1):
-        lines.append(f"{i}. {rule.get('criteria_name', 'Rule')}: {rule.get('description', '')} (Penalty: {rule.get('score_penalty', 0)})")
+        lines.append(
+            f"{i}. {rule.get('criteria_name', 'Rule')}: {rule.get('description', '')} "
+            f"(Violation: '{rule.get('violation_text', '')}'"
+            + (f", Correct: '{rule.get('correct_text', '')}'" if rule.get('correct_text') else "")
+            + f", Penalty: {rule.get('score_penalty', 0)})"
+        )
     return '\n'.join(lines)
 
 def summarize_rules(business_rules: List[Dict]) -> str:
