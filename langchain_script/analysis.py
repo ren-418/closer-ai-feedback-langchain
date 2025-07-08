@@ -114,6 +114,14 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     Build a professional prompt for analyzing a chunk with reference examples and context window.
     Includes token safety checks and explicit instructions for lead question extraction.
     """
+    # Explicit instructions for the LLM
+    instructions = (
+        "Analyze the CURRENT CHUNK TO ANALYZE using the reference examples and business rules above. "
+        "Extract only the questions asked by the lead. "
+        "If there are no lead questions, return an empty list. "
+        "Be strict and professional. Respond in the requested JSON format only."
+    )
+    
     # Base prompt structure
     base_prompt = (
         "You are an expert sales call evaluator with 15+ years of experience in sales training and coaching. "
