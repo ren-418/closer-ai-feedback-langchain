@@ -52,8 +52,7 @@ class SalesCallEvaluator:
                     chunk_data['chunk_text'],
                     similar_chunks,
                     chunk_data['context_prev'],
-                    chunk_data['context_next'],
-                    business_rules=business_rules
+                    chunk_data['context_next']
                 )
                 
                 chunk_analyses.append({

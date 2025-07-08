@@ -109,7 +109,7 @@ def embed_new_transcript(transcript_text: str) -> List[Dict]:
             print(f"[Embedding] Processed {idx + 1}/{total_chunks} chunks")
     return results
 
-def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '', business_rules: List[Dict] = None) -> str:
+def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '') -> str:
     """
     Build a professional prompt for analyzing a chunk with reference examples and context window.
     Includes token safety checks and explicit instructions for lead question extraction.
@@ -170,25 +170,101 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
             break
     
     # Insert business rules section
-    if business_rules and len(business_rules) > 0:
-        rules_text = format_rules(business_rules)
-        rules_section = (
-            f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
-            "For each violation found (based ONLY on the above business rules):\n"
-            "- Note the exact text and context where it appears\n"
-            "- Suggest the correct term to use\n"
-            "- Explain why it's a violation and its business impact\n"
-            "- Indicate score penalty (typically -2 points per violation)\n\n"
-            "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
-        )
-    else:
-        rules_section = (
-            "NO BUSINESS RULES are provided for this analysis. Do NOT invent or check for any business rule violations.\n\n"
-            "7. **Custom Business Rules**: No business rules were provided, so this section should be empty or state 'No violations; no rules provided.'\n"
-        )
-
-    # Build prompt with rules
-    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_section
+     # Analysis instructions
+    instructions = (
+        "\nPROFESSIONAL ANALYSIS REQUIREMENTS:\n"
+        "1. **Lead Questions**: Extract all questions asked by the lead (be specific)\n"
+        "2. **Objections Identified**: List all objections that emerged during this chunk\n"
+        "3. **Objection Handling Assessment**: \n"
+        "   - How effectively did the closer address each objection?\n"
+        "   - What techniques were used? (mirroring, reframing, etc.)\n"
+        "   - Compare to reference examples - what worked well?\n"
+        "4. **Engagement & Rapport**: Evaluate the closer's ability to build trust and maintain engagement\n"
+        "5. **Discovery & Qualification**: Assess how well the closer gathered information and qualified the lead\n"
+        "6. **Payment Discussion**: Evaluate if and how payment options were presented\n"
+        "\n"
+        "PROVIDE DETAILED FEEDBACK WITH SPECIFIC EXAMPLES:\n"
+        "- Reference specific moments from the chunk\n"
+        "- Compare to successful techniques from reference examples\n"
+        "- Give concrete, actionable coaching advice\n"
+        "- Focus on both strengths and areas for improvement\n"
+        "\n"
+        "Respond in this EXACT JSON format:\n"
+        "{\n"
+        '  "analysis_metadata": {\n'
+        '    "chunk_number": 1,\n'
+        '    "analysis_timestamp": "2024-01-01T12:00:00Z",\n'
+        '    "reference_files_used": [\n'
+        '      {"filename": "ref1.txt", "closer_name": "John Doe", "similarity_score": 0.85}\n'
+        '    ]\n'
+        '  },\n'
+        '  "lead_interaction": {\n'
+        '    "questions_asked": ["specific question 1", "specific question 2"],\n'
+        '    "objections_raised": ["specific objection 1", "specific objection 2"],\n'
+        '    "engagement_level": "high/medium/low",\n'
+        '    "concerns_expressed": ["concern 1", "concern 2"]\n'
+        '  },\n'
+        '  "closer_performance": {\n'
+        '    "strengths": [\n'
+        '      {\n'
+        '        "category": "objection_handling/rapport_building/discovery/closing",\n'
+        '        "description": "Specific strength with example from transcript",\n'
+        '        "reference_comparison": "How this compares to successful examples"\n'
+        '      }\n'
+        '    ],\n'
+        '    "weaknesses": [\n'
+        '      {\n'
+        '        "category": "objection_handling/rapport_building/discovery/closing",\n'
+        '        "description": "Specific weakness with example from transcript",\n'
+        '        "reference_comparison": "How this differs from successful examples",\n'
+        '        "improvement_suggestion": "Specific coaching advice"\n'
+        '      }\n'
+        '    ]\n'
+        '  },\n'
+        '  "coaching_recommendations": [\n'
+        '    {\n'
+        '      "priority": "high/medium/low",\n'
+        '      "area": "objection_handling/rapport_building/discovery/closing",\n'
+        '      "recommendation": "Specific, actionable coaching advice",\n'
+        '      "example_from_reference": "How successful closers handle this"\n'
+        '    }\n'
+        '  ],\n'
+        '  "scoring": {\n'
+        '    "overall_score": 85,\n'
+        '    "letter_grade": "A",\n'
+        '    "detailed_metrics": {\n'
+        '      "rapport_building": {"score": 8, "comment": "Specific feedback"},\n'
+        '      "discovery": {"score": 7, "comment": "Specific feedback"},\n'
+        '      "objection_handling": {"score": 9, "comment": "Specific feedback"},\n'
+        '      "pitch_delivery": {"score": 8, "comment": "Specific feedback"},\n'
+        '      "closing_effectiveness": {"score": 7, "comment": "Specific feedback"}\n'
+        '    }\n'
+        '  },\n'
+        '  "key_insights": {\n'
+        '    "best_practices_demonstrated": ["practice 1", "practice 2"],\n'
+        '    "missed_opportunities": ["opportunity 1", "opportunity 2"],\n'
+        '    "critical_moments": ["moment 1", "moment 2"]\n'
+        '  }\n'
+        "}\n"
+        "\nSCORING GUIDELINES:\n"
+        "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
+        "\nGRADE RULES (for letter_grade):\n"
+        "94-100  = A\n"
+        "90-93.9 = A-\n"
+        "87-89.9 = B+\n"
+        "84-86.9 = B\n"
+        "80-83.9 = B-\n"
+        "77-79.9 = C+\n"
+        "74-76.9 = C\n"
+        "70-73.9 = C-\n"
+        "67-69.9 = D+\n"
+        "64-66.9 = D\n"
+        "60-63.9 = D-\n"
+        "0-59.9  = E."
+    )
+    
+    # Build final prompt
+    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + instructions
     # Final token check and summarization if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if business_rules and prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
@@ -211,14 +287,14 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     print(f"[Token Management] Final prompt: {calculate_prompt_tokens(prompt)} tokens")
     return prompt
 
-def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3, business_rules: List[Dict] = None) -> Dict:
+def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3) -> Dict:
     """
     Analyze a chunk using RAG with reference examples from good calls and context window.
     Returns enhanced analysis with reference file tracking and token safety.
     Dynamically sets max_tokens to avoid context window errors, with a safety buffer.
     """
     try:
-        prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next, business_rules)
+        prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
         
         # Final safety check
         prompt_tokens = calculate_prompt_tokens(prompt)
