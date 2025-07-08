@@ -7,12 +7,14 @@ import os
 from datetime import datetime
 from .analysis import embed_new_transcript, analyze_chunk_with_rag, aggregate_chunk_analyses
 from embeddings.pinecone_store import PineconeManager
+from database.database_manager import DatabaseManager
 
 class SalesCallEvaluator:
     def __init__(self):
         """Initialize the sales call evaluator with necessary clients."""
         self.openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.pinecone_manager = PineconeManager()
+        self.db_manager = DatabaseManager()
     
     def evaluate_transcript(self, transcript: str, top_k: int = 3) -> Dict:
         """
@@ -25,7 +27,7 @@ class SalesCallEvaluator:
             print(f"[Evaluator] Transcript length: {len(transcript)} characters")
             
             # At the start of evaluate_transcript, fetch business rules
-            business_rules = self.pinecone_manager.db_manager.get_business_rules() if hasattr(self.pinecone_manager, 'db_manager') else []
+            business_rules = db_manager.get_business_rules()
             
             # Chunk and embed the transcript
             print("[Evaluator] Chunking and embedding transcript...")

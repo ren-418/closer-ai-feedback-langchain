@@ -170,9 +170,25 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
             break
     
     # Insert business rules section
-    rules_text = format_rules(business_rules) if business_rules else ''
+    if business_rules and len(business_rules) > 0:
+        rules_text = format_rules(business_rules)
+        rules_section = (
+            f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
+            "For each violation found (based ONLY on the above business rules):\n"
+            "- Note the exact text and context where it appears\n"
+            "- Suggest the correct term to use\n"
+            "- Explain why it's a violation and its business impact\n"
+            "- Indicate score penalty (typically -2 points per violation)\n\n"
+            "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
+        )
+    else:
+        rules_section = (
+            "NO BUSINESS RULES are provided for this analysis. Do NOT invent or check for any business rule violations.\n\n"
+            "7. **Custom Business Rules**: No business rules were provided, so this section should be empty or state 'No violations; no rules provided.'\n"
+        )
+
     # Build prompt with rules
-    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_text
+    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_section
     # Final token check and summarization if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if business_rules and prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
@@ -292,7 +308,23 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             }
             chunk_summaries.append(summary)
     # Insert business rules section
-    rules_text = format_rules(business_rules) if business_rules else ''
+    if business_rules and len(business_rules) > 0:
+        rules_text = format_rules(business_rules)
+        rules_section = (
+            f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
+            "For each violation found (based ONLY on the above business rules):\n"
+            "- Note the exact text and context where it appears\n"
+            "- Suggest the correct term to use\n"
+            "- Explain why it's a violation and its business impact\n"
+            "- Indicate score penalty (typically -2 points per violation)\n\n"
+            "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
+        )
+    else:
+        rules_section = (
+            "NO BUSINESS RULES are provided for this analysis. Do NOT invent or check for any business rule violations.\n\n"
+            "7. **Custom Business Rules**: No business rules were provided, so this section should be empty or state 'No violations; no rules provided.'\n"
+        )
+
     prompt = (
         "You are an expert sales call evaluator creating a comprehensive final report. "
         "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
@@ -302,13 +334,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         f"{json.dumps(chunk_summaries, indent=2)}\n\n"
         "REFERENCE FILES USED:\n"
         f"{', '.join(all_reference_files)}\n\n"
-        f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
-        "For each violation found (based ONLY on the above business rules):\n"
-        "- Note the exact text and context where it appears\n"
-        "- Suggest the correct term to use\n"
-        "- Explain why it's a violation and its business impact\n"
-        "- Indicate score penalty (typically -2 points per violation)\n"
-        "\n"
+        f"{rules_section}"
         "Create a comprehensive final report that includes:\n"
         "1. **Executive Summary**: Overall performance assessment\n"
         "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
@@ -316,7 +342,6 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
         "5. **Discovery & Qualification**: How well the closer gathered information\n"
         "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
-        "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
         "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
         "9. **Reference Comparisons**: How this call compares to successful examples\n"
         "\n"
@@ -430,7 +455,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "60-63.9 = D-\n"
         "0-59.9  = E."
     )
-    print("businness rules from db :::", rules_text)
+    print("businness rules from db :::", rules_text if business_rules else "<none>")
     # Check token count and summarize rules if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if business_rules and prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
