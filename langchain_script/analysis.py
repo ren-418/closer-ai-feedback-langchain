@@ -296,12 +296,14 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     prompt = (
         "You are an expert sales call evaluator creating a comprehensive final report. "
         "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
+        "IMPORTANT: The following BUSINESS RULES are fetched from the live company database and MUST be strictly checked and enforced in your analysis. "
+        "You are REQUIRED to identify violations ONLY according to these provided rules. Do NOT invent or use any rules not present in the list.\n\n"
         "CHUNK ANALYSES SUMMARY:\n"
         f"{json.dumps(chunk_summaries, indent=2)}\n\n"
         "REFERENCE FILES USED:\n"
         f"{', '.join(all_reference_files)}\n\n"
-        f"BUSINESS RULES TO CHECK:\n{rules_text}\n\n"
-        "For each violation found:\n"
+        f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
+        "For each violation found (based ONLY on the above business rules):\n"
         "- Note the exact text and context where it appears\n"
         "- Suggest the correct term to use\n"
         "- Explain why it's a violation and its business impact\n"
@@ -314,11 +316,11 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
         "5. **Discovery & Qualification**: How well the closer gathered information\n"
         "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
-        "7. **Custom Business Rules**: Violations found and their impact\n"
+        "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
         "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
         "9. **Reference Comparisons**: How this call compares to successful examples\n"
         "\n"
-        "Respond in this EXACT JSON format:\n"
+        "Respond in this EXACT JSON format (structure is required, but all content must be based on the actual texts, this is only type of response :\n"
         "{\n"
         '  "report_metadata": {\n'
         '    "total_chunks_analyzed": 5,\n'
@@ -365,7 +367,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         '  "custom_business_rules": {\n'
         '    "violations_found": [\n'
         '      {\n'
-        '        "rule": "currency_violation",\n'
+        '        "rule": "",\n'
         '        "violation_text": "pounds",\n'
         '        "context": "The price is 100 pounds",\n'
         '        "correct_text": "dollars",\n'
@@ -428,146 +430,149 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "60-63.9 = D-\n"
         "0-59.9  = E."
     )
+    print("businness rules from db :::", rules_text)
     # Check token count and summarize rules if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if business_rules and prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
         print(f"[Token Management] Aggregation prompt too long with rules ({prompt_tokens} tokens), summarizing rules...")
         summarized_rules = summarize_rules(business_rules)
         prompt = (
-            "You are an expert sales call evaluator creating a comprehensive final report. "
-            "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
-            "CHUNK ANALYSES SUMMARY:\n"
-            f"{json.dumps(chunk_summaries, indent=2)}\n\n"
-            "REFERENCE FILES USED:\n"
-            f"{', '.join(all_reference_files)}\n\n"
-            f"BUSINESS RULES TO CHECK:\n{summarized_rules}\n\n"
-            "For each violation found:\n"
-            "- Note the exact text and context where it appears\n"
-            "- Suggest the correct term to use\n"
-            "- Explain why it's a violation and its business impact\n"
-            "- Indicate score penalty (typically -2 points per violation)\n"
-            "\n"
-            "Create a comprehensive final report that includes:\n"
-            "1. **Executive Summary**: Overall performance assessment\n"
-            "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
-            "3. **Objection Handling Review**: How well objections were managed throughout the call\n"
-            "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
-            "5. **Discovery & Qualification**: How well the closer gathered information\n"
-            "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
-            "7. **Custom Business Rules**: Violations found and their impact\n"
-            "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
-            "9. **Reference Comparisons**: How this call compares to successful examples\n"
-            "\n"
-            "Respond in this EXACT JSON format:\n"
-            "{\n"
-            '  "report_metadata": {\n'
-            '    "total_chunks_analyzed": 5,\n'
-            '    "reference_files_used": ["file1.txt (John Doe)", "file2.txt (Jane Smith)"],\n'
-            '    "analysis_timestamp": "2024-01-01T12:00:00Z",\n'
-            '    "call_duration_estimated": "15 minutes"\n'
-            '  },\n'
-            '  "executive_summary": {\n'
-            '    "overall_assessment": "Professional summary of call performance",\n'
-            '    "overall_score": 85,\n'
-            '    "letter_grade": "A",\n'
-            '    "key_highlights": ["highlight 1", "highlight 2"],\n'
-            '    "critical_areas": ["area 1", "area 2"]\n'
-            '  },\n'
-            '  "detailed_analysis": {\n'
-            '    "objection_handling": {\n'
-            '      "score": 8,\n'
-            '      "strengths": ["strength 1", "strength 2"],\n'
-            '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-            '      "objections_encountered": ["objection 1", "objection 2"],\n'
-            '      "handling_techniques_used": ["technique 1", "technique 2"]\n'
-            '    },\n'
-            '    "engagement_rapport": {\n'
-            '      "score": 9,\n'
-            '      "strengths": ["strength 1", "strength 2"],\n'
-            '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-            '      "rapport_building_moments": ["moment 1", "moment 2"]\n'
-            '    },\n'
-            '    "discovery_qualification": {\n'
-            '      "score": 7,\n'
-            '      "strengths": ["strength 1", "strength 2"],\n'
-            '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-            '      "information_gathered": ["info 1", "info 2"],\n'
-            '      "qualification_questions": ["question 1", "question 2"]\n'
-            '    },\n'
-            '    "closing_effectiveness": {\n'
-            '      "score": 8,\n'
-            '      "strengths": ["strength 1", "strength 2"],\n'
-            '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-            '      "closing_attempts": ["attempt 1", "attempt 2"],\n'
-            '      "payment_discussion": "How payment was discussed"\n'
-            '    }\n'
-            '  },\n'
-            '  "custom_business_rules": {\n'
-            '    "violations_found": [\n'
-            '      {\n'
-            '        "rule": "currency_violation",\n'
-            '        "violation_text": "pounds",\n'
-            '        "context": "The price is 100 pounds",\n'
-            '        "correct_text": "dollars",\n'
-            '        "explanation": "Used incorrect currency - all transactions must be in USD",\n'
-            '        "score_impact": -2\n'
-            '      }\n'
-            '    ],\n'
-            '    "total_violations": 1,\n'
-            '    "total_score_penalty": -2,\n'
-            '    "recommendations": [\n'
-            '      "Always use \'dollars\' when discussing pricing",\n'
-            '      "Review company currency guidelines"\n'
-            '    ]\n'
-            '  },\n'
-            '  "coaching_recommendations": [\n'
-            '    {\n'
-            '      "priority": "high/medium/low",\n'
-            '      "category": "objection_handling/engagement/discovery/closing",\n'
-            '      "recommendation": "Specific coaching advice",\n'
-            '      "reference_example": "How successful closers handle this",\n'
-            '      "expected_impact": "What improvement this will bring"\n'
-            '    }\n'
-            '  ],\n'
-            '  "reference_comparisons": {\n'
-            '    "similarities_to_successful_calls": ["similarity 1", "similarity 2"],\n'
-            '    "differences_from_successful_calls": ["difference 1", "difference 2"],\n'
-            '    "best_practices_demonstrated": ["practice 1", "practice 2"],\n'
-            '    "missed_opportunities": ["opportunity 1", "opportunity 2"]\n'
-            '  },\n'
-            '  "lead_interaction_summary": {\n'
-            '    "total_questions_asked": 5,\n'
-            '    "total_objections_raised": 3,\n'
-            '    "questions_asked": ["specific question 1", "specific question 2"],\n'
-            '    "engagement_pattern": "high/medium/low",\n'
-            '    "buying_signals": ["signal 1", "signal 2"],\n'
-            '    "concerns_expressed": ["concern 1", "concern 2"]\n'
-            '  },\n'
-            '  "performance_metrics": {\n'
-            '    "rapport_building": 8,\n'
-            '    "discovery": 7,\n'
-            '    "objection_handling": 8,\n'
-            '    "pitch_delivery": 8,\n'
-            '    "closing_effectiveness": 8,\n'
-            '    "overall_performance": 8\n'
-            '  }\n'
-            "}\n"
-            "\nSCORING GUIDELINES:\n"
-            "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
-            "\nGRADE RULES (for letter_grade):\n"
-            "94-100  = A\n"
-            "90-93.9 = A-\n"
-            "87-89.9 = B+\n"
-            "84-86.9 = B\n"
-            "80-83.9 = B-\n"
-            "77-79.9 = C+\n"
-            "74-76.9 = C\n"
-            "70-73.9 = C-\n"
-            "67-69.9 = D+\n"
-            "64-66.9 = D\n"
-            "60-63.9 = D-\n"
-            "0-59.9  = E."
-        )
+        "You are an expert sales call evaluator creating a comprehensive final report. "
+        "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
+        "IMPORTANT: The following BUSINESS RULES are fetched from the live company database and MUST be strictly checked and enforced in your analysis. "
+        "You are REQUIRED to identify violations ONLY according to these provided rules. Do NOT invent or use any rules not present in the list.\n\n"
+        "CHUNK ANALYSES SUMMARY:\n"
+        f"{json.dumps(chunk_summaries, indent=2)}\n\n"
+        "REFERENCE FILES USED:\n"
+        f"{', '.join(all_reference_files)}\n\n"
+        f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{summarized_rules}\n\n"
+        "For each violation found (based ONLY on the above business rules):\n"
+        "- Note the exact text and context where it appears\n"
+        "- Suggest the correct term to use\n"
+        "- Explain why it's a violation and its business impact\n"
+        "- Indicate score penalty (typically -2 points per violation)\n"
+        "\n"
+        "Create a comprehensive final report that includes:\n"
+        "1. **Executive Summary**: Overall performance assessment\n"
+        "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
+        "3. **Objection Handling Review**: How well objections were managed throughout the call\n"
+        "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
+        "5. **Discovery & Qualification**: How well the closer gathered information\n"
+        "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
+        "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
+        "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
+        "9. **Reference Comparisons**: How this call compares to successful examples\n"
+        "\n"
+        "Respond in this EXACT JSON format (structure is required, but all content must be based on the actual texts, this is only type of response :\n"
+        "{\n"
+        '  "report_metadata": {\n'
+        '    "total_chunks_analyzed": 5,\n'
+        '    "reference_files_used": ["file1.txt (John Doe)", "file2.txt (Jane Smith)"],\n'
+        '    "analysis_timestamp": "2024-01-01T12:00:00Z",\n'
+        '    "call_duration_estimated": "15 minutes"\n'
+        '  },\n'
+        '  "executive_summary": {\n'
+        '    "overall_assessment": "Professional summary of call performance",\n'
+        '    "overall_score": 85,\n'
+        '    "letter_grade": "A",\n'
+        '    "key_highlights": ["highlight 1", "highlight 2"],\n'
+        '    "critical_areas": ["area 1", "area 2"]\n'
+        '  },\n'
+        '  "detailed_analysis": {\n'
+        '    "objection_handling": {\n'
+        '      "score": 8,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
+        '      "objections_encountered": ["objection 1", "objection 2"],\n'
+        '      "handling_techniques_used": ["technique 1", "technique 2"]\n'
+        '    },\n'
+        '    "engagement_rapport": {\n'
+        '      "score": 9,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
+        '      "rapport_building_moments": ["moment 1", "moment 2"]\n'
+        '    },\n'
+        '    "discovery_qualification": {\n'
+        '      "score": 7,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
+        '      "information_gathered": ["info 1", "info 2"],\n'
+        '      "qualification_questions": ["question 1", "question 2"]\n'
+        '    },\n'
+        '    "closing_effectiveness": {\n'
+        '      "score": 8,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
+        '      "closing_attempts": ["attempt 1", "attempt 2"],\n'
+        '      "payment_discussion": "How payment was discussed"\n'
+        '    }\n'
+        '  },\n'
+        '  "custom_business_rules": {\n'
+        '    "violations_found": [\n'
+        '      {\n'
+        '        "rule": "",\n'
+        '        "violation_text": "pounds",\n'
+        '        "context": "The price is 100 pounds",\n'
+        '        "correct_text": "dollars",\n'
+        '        "explanation": "Used incorrect currency - all transactions must be in USD",\n'
+        '        "score_impact": -2\n'
+        '      }\n'
+        '    ],\n'
+        '    "total_violations": 1,\n'
+        '    "total_score_penalty": -2,\n'
+        '    "recommendations": [\n'
+        '      "Always use \'dollars\' when discussing pricing",\n'
+        '      "Review company currency guidelines"\n'
+        '    ]\n'
+        '  },\n'
+        '  "coaching_recommendations": [\n'
+        '    {\n'
+        '      "priority": "high/medium/low",\n'
+        '      "category": "objection_handling/engagement/discovery/closing",\n'
+        '      "recommendation": "Specific coaching advice",\n'
+        '      "reference_example": "How successful closers handle this",\n'
+        '      "expected_impact": "What improvement this will bring"\n'
+        '    }\n'
+        '  ],\n'
+        '  "reference_comparisons": {\n'
+        '    "similarities_to_successful_calls": ["similarity 1", "similarity 2"],\n'
+        '    "differences_from_successful_calls": ["difference 1", "difference 2"],\n'
+        '    "best_practices_demonstrated": ["practice 1", "practice 2"],\n'
+        '    "missed_opportunities": ["opportunity 1", "opportunity 2"]\n'
+        '  },\n'
+        '  "lead_interaction_summary": {\n'
+        '    "total_questions_asked": 5,\n'
+        '    "total_objections_raised": 3,\n'
+        '    "questions_asked": ["specific question 1", "specific question 2"],\n'
+        '    "engagement_pattern": "high/medium/low",\n'
+        '    "buying_signals": ["signal 1", "signal 2"],\n'
+        '    "concerns_expressed": ["concern 1", "concern 2"]\n'
+        '  },\n'
+        '  "performance_metrics": {\n'
+        '    "rapport_building": 8,\n'
+        '    "discovery": 7,\n'
+        '    "objection_handling": 8,\n'
+        '    "pitch_delivery": 8,\n'
+        '    "closing_effectiveness": 8,\n'
+        '    "overall_performance": 8\n'
+        '  }\n'
+        "}\n"
+        "\nSCORING GUIDELINES:\n"
+        "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
+        "\nGRADE RULES (for letter_grade):\n"
+        "94-100  = A\n"
+        "90-93.9 = A-\n"
+        "87-89.9 = B+\n"
+        "84-86.9 = B\n"
+        "80-83.9 = B-\n"
+        "77-79.9 = C+\n"
+        "74-76.9 = C\n"
+        "70-73.9 = C-\n"
+        "67-69.9 = D+\n"
+        "64-66.9 = D\n"
+        "60-63.9 = D-\n"
+        "0-59.9  = E."
+    )
     # Dynamically set max_tokens with buffer
     allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
     allowed_max_tokens = max(256, allowed_max_tokens)
