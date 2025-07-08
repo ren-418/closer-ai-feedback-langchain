@@ -114,14 +114,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     Build a professional prompt for analyzing a chunk with reference examples and context window.
     Includes token safety checks and explicit instructions for lead question extraction.
     """
-    # Explicit instructions for the LLM
-    instructions = (
-        "Analyze the CURRENT CHUNK TO ANALYZE using the reference examples and business rules above. "
-        "Extract only the questions asked by the lead. "
-        "If there are no lead questions, return an empty list. "
-        "Be strict and professional. Respond in the requested JSON format only."
-    )
-    
+   
     # Base prompt structure
     base_prompt = (
         "You are an expert sales call evaluator with 15+ years of experience in sales training and coaching. "
@@ -179,13 +172,13 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     # Insert business rules section
     rules_text = format_rules(business_rules) if business_rules else ''
     # Build prompt with rules
-    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_text + "\n" + instructions
+    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_text
     # Final token check and summarization if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if business_rules and prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
         print(f"[Token Management] Prompt too long with rules ({prompt_tokens} tokens), summarizing rules...")
         summarized_rules = summarize_rules(business_rules)
-        prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + summarized_rules + "\n" + instructions
+        prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + summarized_rules
     # Final token check and truncation if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
