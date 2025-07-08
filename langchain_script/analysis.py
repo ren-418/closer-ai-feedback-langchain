@@ -202,14 +202,14 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     print(f"[Token Management] Final prompt: {calculate_prompt_tokens(prompt)} tokens")
     return prompt
 
-def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3) -> Dict:
+def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3, business_rules: List[Dict] = None) -> Dict:
     """
     Analyze a chunk using RAG with reference examples from good calls and context window.
     Returns enhanced analysis with reference file tracking and token safety.
     Dynamically sets max_tokens to avoid context window errors, with a safety buffer.
     """
     try:
-        prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
+        prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next, business_rules)
         
         # Final safety check
         prompt_tokens = calculate_prompt_tokens(prompt)
