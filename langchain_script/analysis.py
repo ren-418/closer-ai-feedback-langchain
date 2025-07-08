@@ -267,12 +267,6 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + instructions
     # Final token check and summarization if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
-    if business_rules and prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
-        print(f"[Token Management] Prompt too long with rules ({prompt_tokens} tokens), summarizing rules...")
-        summarized_rules = summarize_rules(business_rules)
-        prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + summarized_rules
-    # Final token check and truncation if needed
-    prompt_tokens = calculate_prompt_tokens(prompt)
     if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
         print(f"[Token Management] Prompt too long ({prompt_tokens} tokens), truncating...")
         # Truncate chunk text if needed
@@ -282,7 +276,8 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
             chunk_tokens = chunk_tokens[:max_chunk_tokens_for_prompt]
             chunk_text = encoding.decode(chunk_tokens)
             print(f"[Token Management] Truncated chunk to {len(chunk_tokens)} tokens")
-            prompt = build_chunk_analysis_prompt(chunk_text, reference_texts, context_prev, context_next, business_rules)
+            # Rebuild prompt with truncated chunk
+            prompt = build_chunk_analysis_prompt(chunk_text, reference_texts, context_prev, context_next)
     
     print(f"[Token Management] Final prompt: {calculate_prompt_tokens(prompt)} tokens")
     return prompt
