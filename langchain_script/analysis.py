@@ -109,7 +109,7 @@ def embed_new_transcript(transcript_text: str) -> List[Dict]:
             print(f"[Embedding] Processed {idx + 1}/{total_chunks} chunks")
     return results
 
-def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '') -> str:
+def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '', business_rules: List[Dict] = None) -> str:
     """
     Build a professional prompt for analyzing a chunk with reference examples and context window.
     Includes token safety checks and explicit instructions for lead question extraction.
@@ -169,8 +169,23 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
             print(f"[Token Management] Skipping reference {i} to stay within token limits")
             break
     
-    # Insert business rules section
-     # Analysis instructions
+    # Business rules section
+    if business_rules and len(business_rules) > 0:
+        rules_text = format_rules(business_rules)
+        rules_section = (
+            f"\nBUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
+            "For each violation found (based ONLY on the above business rules):\n"
+            "- Note the exact text and context where it appears\n"
+            "- Suggest the correct term to use\n"
+            "- Explain why it's a violation and its business impact\n"
+            "- Indicate score penalty (typically -2 points per violation)\n"
+        )
+    else:
+        rules_section = (
+            "\nNO BUSINESS RULES are provided for this analysis. Do NOT invent or check for any business rule violations.\n"
+        )
+    
+    # Analysis instructions
     instructions = (
         "\nPROFESSIONAL ANALYSIS REQUIREMENTS:\n"
         "1. **Lead Questions**: Extract all questions asked by the lead (be specific)\n"
@@ -182,6 +197,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         "4. **Engagement & Rapport**: Evaluate the closer's ability to build trust and maintain engagement\n"
         "5. **Discovery & Qualification**: Assess how well the closer gathered information and qualified the lead\n"
         "6. **Payment Discussion**: Evaluate if and how payment options were presented\n"
+        "7. **Business Rules Violations**: Check for any violations in this chunk\n"
         "\n"
         "PROVIDE DETAILED FEEDBACK WITH SPECIFIC EXAMPLES:\n"
         "- Reference specific moments from the chunk\n"
@@ -203,6 +219,20 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '    "objections_raised": ["specific objection 1", "specific objection 2"],\n'
         '    "engagement_level": "high/medium/low",\n'
         '    "concerns_expressed": ["concern 1", "concern 2"]\n'
+        '  },\n'
+        '  "custom_business_rules": {\n'
+        '    "violations_found": [\n'
+        '      {\n'
+        '        "rule": "rule_name",\n'
+        '        "violation_text": "problematic phrase",\n'
+        '        "context": "The full sentence or context",\n'
+        '        "correct_text": "preferred phrase",\n'
+        '        "explanation": "Why this is a problem",\n'
+        '        "score_impact": -2\n'
+        '      }\n'
+        '    ],\n'
+        '    "total_violations": 1,\n'
+        '    "total_score_penalty": -2\n'
         '  },\n'
         '  "closer_performance": {\n'
         '    "strengths": [\n'
@@ -264,7 +294,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     )
     
     # Build final prompt
-    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + instructions
+    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_section + instructions
     # Final token check and summarization if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
@@ -277,19 +307,19 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
             chunk_text = encoding.decode(chunk_tokens)
             print(f"[Token Management] Truncated chunk to {len(chunk_tokens)} tokens")
             # Rebuild prompt with truncated chunk
-            prompt = build_chunk_analysis_prompt(chunk_text, reference_texts, context_prev, context_next)
+            prompt = build_chunk_analysis_prompt(chunk_text, reference_texts, context_prev, context_next, business_rules)
     
     print(f"[Token Management] Final prompt: {calculate_prompt_tokens(prompt)} tokens")
     return prompt
 
-def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3) -> Dict:
+def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3, business_rules: List[Dict] = None) -> Dict:
     """
     Analyze a chunk using RAG with reference examples from good calls and context window.
     Returns enhanced analysis with reference file tracking and token safety.
     Dynamically sets max_tokens to avoid context window errors, with a safety buffer.
     """
     try:
-        prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next)
+        prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next, business_rules)
         
         # Final safety check
         prompt_tokens = calculate_prompt_tokens(prompt)
@@ -364,6 +394,22 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         if 'analysis_metadata' in analysis and 'reference_files_used' in analysis['analysis_metadata']:
             for ref in analysis['analysis_metadata']['reference_files_used']:
                 all_reference_files.add(f"{ref['filename']} ({ref['closer_name']})")
+    
+    # Collect all violations from chunks
+    all_violations = []
+    total_violations = 0
+    total_score_penalty = 0
+    
+    for i, analysis in enumerate(chunk_analyses):
+        if 'error' not in analysis and 'custom_business_rules' in analysis:
+            chunk_violations = analysis['custom_business_rules'].get('violations_found', [])
+            for violation in chunk_violations:
+                # Add chunk context to violation
+                violation['chunk_number'] = i + 1
+                all_violations.append(violation)
+            total_violations += analysis['custom_business_rules'].get('total_violations', 0)
+            total_score_penalty += analysis['custom_business_rules'].get('total_score_penalty', 0)
+    
     # Prepare chunk summaries for aggregation
     chunk_summaries = []
     for i, analysis in enumerate(chunk_analyses):
@@ -378,34 +424,27 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
                 'questions': analysis.get('lead_interaction', {}).get('questions_asked', [])
             }
             chunk_summaries.append(summary)
-    # Insert business rules section
-    if business_rules and len(business_rules) > 0:
-        rules_text = format_rules(business_rules)
+    
+    # Create business rules section for final report
+    if all_violations:
         rules_section = (
-            f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
-            "For each violation found (based ONLY on the above business rules):\n"
-            "- Note the exact text and context where it appears\n"
-            "- Suggest the correct term to use\n"
-            "- Explain why it's a violation and its business impact\n"
-            "- Indicate score penalty (typically -2 points per violation)\n\n"
-            "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
+            f"BUSINESS RULES VIOLATIONS FOUND: {total_violations} violations across all chunks with total penalty of {total_score_penalty} points.\n\n"
+            "The following violations were detected in the actual transcript:\n"
         )
+        for i, violation in enumerate(all_violations, 1):
+            rules_section += f"{i}. Chunk {violation.get('chunk_number', 'Unknown')}: {violation.get('violation_text', '')} → {violation.get('correct_text', '')} ({violation.get('explanation', '')})\n"
     else:
         rules_section = (
-            "NO BUSINESS RULES are provided for this analysis. Do NOT invent or check for any business rule violations.\n\n"
-            "7. **Custom Business Rules**: No business rules were provided, so this section should be empty or state 'No violations; no rules provided.'\n"
+            "NO BUSINESS RULES VIOLATIONS FOUND in any chunk.\n\n"
         )
 
     prompt = (
         "You are an expert sales call evaluator creating a comprehensive final report. "
         "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
-        "IMPORTANT: The following BUSINESS RULES are fetched from the live company database and MUST be strictly checked and enforced in your analysis. "
-        "You are REQUIRED to identify violations ONLY according to these provided rules. Do NOT invent or use any rules not present in the list.\n\n"
         "CHUNK ANALYSES SUMMARY:\n"
         f"{json.dumps(chunk_summaries, indent=2)}\n\n"
         "REFERENCE FILES USED:\n"
         f"{', '.join(all_reference_files)}\n\n"
-        "Note: If there is a really good and valid reason for above reference, give it a clear high score. However, if there is something exact , clear wrong,  cut the many score. I want most calls to have a clear score, not a lukewarm score."
         f"{rules_section}"
         "Create a comprehensive final report that includes:\n"
         "1. **Executive Summary**: Overall performance assessment\n"
@@ -414,6 +453,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
         "5. **Discovery & Qualification**: How well the closer gathered information\n"
         "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
+        "7. **Custom Business Rules**: Violations found and their impact (from chunk analysis)\n"
         "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
         "9. **Reference Comparisons**: How this call compares to successful examples\n"
         "\n"
@@ -469,7 +509,8 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         '        "context": "The price is 100 pounds",\n'
         '        "correct_text": "dollars",\n'
         '        "explanation": "Used incorrect currency - all transactions must be in USD",\n'
-        '        "score_impact": -2\n'
+        '        "score_impact": -2,\n'
+        '        "chunk_number": 1\n'
         '      }\n'
         '    ],\n'
         '    "total_violations": 1,\n'
@@ -527,149 +568,58 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "60-63.9 = D-\n"
         "0-59.9  = E."
     )
-    print("businness rules from db :::", rules_text if business_rules else "<none>")
+    print("businness rules from db :::", "violations collected from chunks" if all_violations else "<none>")
     # Check token count and summarize rules if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
-    if business_rules and prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
-        print(f"[Token Management] Aggregation prompt too long with rules ({prompt_tokens} tokens), summarizing rules...")
-        summarized_rules = summarize_rules(business_rules)
+    if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
+        print(f"[Token Management] Aggregation prompt too long ({prompt_tokens} tokens), truncating...")
+        # Simplified prompt for long content
         prompt = (
-        "You are an expert sales call evaluator creating a comprehensive final report. "
-        "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
-        "IMPORTANT: The following BUSINESS RULES are fetched from the live company database and MUST be strictly checked and enforced in your analysis. "
-        "You are REQUIRED to identify violations ONLY according to these provided rules. Do NOT invent or use any rules not present in the list.\n\n"
-        "CHUNK ANALYSES SUMMARY:\n"
-        f"{json.dumps(chunk_summaries, indent=2)}\n\n"
-        "REFERENCE FILES USED:\n"
-        f"{', '.join(all_reference_files)}\n\n"
-        f"BUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{summarized_rules}\n\n"
-        "For each violation found (based ONLY on the above business rules):\n"
-        "- Note the exact text and context where it appears\n"
-        "- Suggest the correct term to use\n"
-        "- Explain why it's a violation and its business impact\n"
-        "- Indicate score penalty (typically -2 points per violation)\n"
-        "\n"
-        "Create a comprehensive final report that includes:\n"
-        "1. **Executive Summary**: Overall performance assessment\n"
-        "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
-        "3. **Objection Handling Review**: How well objections were managed throughout the call\n"
-        "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
-        "5. **Discovery & Qualification**: How well the closer gathered information\n"
-        "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
-        "7. **Custom Business Rules**: Violations found and their impact (STRICTLY BASED ON THE PROVIDED RULES)\n"
-        "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
-        "9. **Reference Comparisons**: How this call compares to successful examples\n"
-        "\n"
-        "Respond in this EXACT JSON format (structure is required, but all content must be based on the actual texts, this is only type of response :\n"
-        "{\n"
-        '  "report_metadata": {\n'
-        '    "total_chunks_analyzed": 5,\n'
-        '    "reference_files_used": ["file1.txt (John Doe)", "file2.txt (Jane Smith)"],\n'
-        '    "analysis_timestamp": "2024-01-01T12:00:00Z",\n'
-        '    "call_duration_estimated": "15 minutes"\n'
-        '  },\n'
-        '  "executive_summary": {\n'
-        '    "overall_assessment": "Professional summary of call performance",\n'
-        '    "overall_score": 85,\n'
-        '    "letter_grade": "A",\n'
-        '    "key_highlights": ["highlight 1", "highlight 2"],\n'
-        '    "critical_areas": ["area 1", "area 2"]\n'
-        '  },\n'
-        '  "detailed_analysis": {\n'
-        '    "objection_handling": {\n'
-        '      "score": 8,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "objections_encountered": ["objection 1", "objection 2"],\n'
-        '      "handling_techniques_used": ["technique 1", "technique 2"]\n'
-        '    },\n'
-        '    "engagement_rapport": {\n'
-        '      "score": 9,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "rapport_building_moments": ["moment 1", "moment 2"]\n'
-        '    },\n'
-        '    "discovery_qualification": {\n'
-        '      "score": 7,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "information_gathered": ["info 1", "info 2"],\n'
-        '      "qualification_questions": ["question 1", "question 2"]\n'
-        '    },\n'
-        '    "closing_effectiveness": {\n'
-        '      "score": 8,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "closing_attempts": ["attempt 1", "attempt 2"],\n'
-        '      "payment_discussion": "How payment was discussed"\n'
-        '    }\n'
-        '  },\n'
-        '  "custom_business_rules": {\n'
-        '    "violations_found": [\n'
-        '      {\n'
-        '        "rule": "",\n'
-        '        "violation_text": "pounds",\n'
-        '        "context": "The price is 100 pounds",\n'
-        '        "correct_text": "dollars",\n'
-        '        "explanation": "Used incorrect currency - all transactions must be in USD",\n'
-        '        "score_impact": -2\n'
-        '      }\n'
-        '    ],\n'
-        '    "total_violations": 1,\n'
-        '    "total_score_penalty": -2,\n'
-        '    "recommendations": [\n'
-        '      "Always use \'dollars\' when discussing pricing",\n'
-        '      "Review company currency guidelines"\n'
-        '    ]\n'
-        '  },\n'
-        '  "coaching_recommendations": [\n'
-        '    {\n'
-        '      "priority": "high/medium/low",\n'
-        '      "category": "objection_handling/engagement/discovery/closing",\n'
-        '      "recommendation": "Specific coaching advice",\n'
-        '      "reference_example": "How successful closers handle this",\n'
-        '      "expected_impact": "What improvement this will bring"\n'
-        '    }\n'
-        '  ],\n'
-        '  "reference_comparisons": {\n'
-        '    "similarities_to_successful_calls": ["similarity 1", "similarity 2"],\n'
-        '    "differences_from_successful_calls": ["difference 1", "difference 2"],\n'
-        '    "best_practices_demonstrated": ["practice 1", "practice 2"],\n'
-        '    "missed_opportunities": ["opportunity 1", "opportunity 2"]\n'
-        '  },\n'
-        '  "lead_interaction_summary": {\n'
-        '    "total_questions_asked": 5,\n'
-        '    "total_objections_raised": 3,\n'
-        '    "questions_asked": ["specific question 1", "specific question 2"],\n'
-        '    "engagement_pattern": "high/medium/low",\n'
-        '    "buying_signals": ["signal 1", "signal 2"],\n'
-        '    "concerns_expressed": ["concern 1", "concern 2"]\n'
-        '  },\n'
-        '  "performance_metrics": {\n'
-        '    "rapport_building": 8,\n'
-        '    "discovery": 7,\n'
-        '    "objection_handling": 8,\n'
-        '    "pitch_delivery": 8,\n'
-        '    "closing_effectiveness": 8,\n'
-        '    "overall_performance": 8\n'
-        '  }\n'
-        "}\n"
-        "\nSCORING GUIDELINES:\n"
-        "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
-        "\nGRADE RULES (for letter_grade):\n"
-        "94-100  = A\n"
-        "90-93.9 = A-\n"
-        "87-89.9 = B+\n"
-        "84-86.9 = B\n"
-        "80-83.9 = B-\n"
-        "77-79.9 = C+\n"
-        "74-76.9 = C\n"
-        "70-73.9 = C-\n"
-        "67-69.9 = D+\n"
-        "64-66.9 = D\n"
-        "60-63.9 = D-\n"
-        "0-59.9  = E."
-    )
+            "You are an expert sales call evaluator creating a comprehensive final report. "
+            "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
+            "CHUNK ANALYSES SUMMARY:\n"
+            f"{json.dumps(chunk_summaries, indent=2)}\n\n"
+            "REFERENCE FILES USED:\n"
+            f"{', '.join(all_reference_files)}\n\n"
+            f"{rules_section}"
+            "Create a comprehensive final report that includes:\n"
+            "1. **Executive Summary**: Overall performance assessment\n"
+            "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
+            "3. **Objection Handling Review**: How well objections were managed throughout the call\n"
+            "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
+            "5. **Discovery & Qualification**: How well the closer gathered information\n"
+            "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
+            "7. **Custom Business Rules**: Violations found and their impact (from chunk analysis)\n"
+            "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
+            "9. **Reference Comparisons**: How this call compares to successful examples\n"
+            "\n"
+            "Respond in this EXACT JSON format (structure is required, but all content must be based on the actual texts, this is only type of response :\n"
+            "{\n"
+            '  "report_metadata": { ... },\n'
+            '  "executive_summary": { ... },\n'
+            '  "detailed_analysis": { ... },\n'
+            '  "custom_business_rules": { ... },\n'
+            '  "coaching_recommendations": [ ... ],\n'
+            '  "reference_comparisons": { ... },\n'
+            '  "lead_interaction_summary": { ... },\n'
+            '  "performance_metrics": { ... }\n'
+            "}\n"
+            "\nSCORING GUIDELINES:\n"
+            "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
+            "\nGRADE RULES (for letter_grade):\n"
+            "94-100  = A\n"
+            "90-93.9 = A-\n"
+            "87-89.9 = B+\n"
+            "84-86.9 = B\n"
+            "80-83.9 = B-\n"
+            "77-79.9 = C+\n"
+            "74-76.9 = C\n"
+            "70-73.9 = C-\n"
+            "67-69.9 = D+\n"
+            "64-66.9 = D\n"
+            "60-63.9 = D-\n"
+            "0-59.9  = E."
+        )
     # Dynamically set max_tokens with buffer
     allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
     allowed_max_tokens = max(256, allowed_max_tokens)
@@ -690,6 +640,15 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         final_report['report_metadata']['analysis_timestamp'] = datetime.now().isoformat()
         final_report['report_metadata']['total_chunks_analyzed'] = len(chunk_analyses)
         final_report['report_metadata']['max_tokens_used'] = allowed_max_tokens
+        
+        # Add collected violations to final report
+        if all_violations:
+            if 'custom_business_rules' not in final_report:
+                final_report['custom_business_rules'] = {}
+            final_report['custom_business_rules']['violations_found'] = all_violations
+            final_report['custom_business_rules']['total_violations'] = total_violations
+            final_report['custom_business_rules']['total_score_penalty'] = total_score_penalty
+        
         return final_report
     except json.JSONDecodeError:
         return {
