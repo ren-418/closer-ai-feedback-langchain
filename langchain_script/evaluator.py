@@ -24,6 +24,9 @@ class SalesCallEvaluator:
             print("[Evaluator] Starting transcript evaluation...")
             print(f"[Evaluator] Transcript length: {len(transcript)} characters")
             
+            # At the start of evaluate_transcript, fetch business rules
+            business_rules = self.pinecone_manager.db_manager.get_business_rules() if hasattr(self.pinecone_manager, 'db_manager') else []
+            
             # Chunk and embed the transcript
             print("[Evaluator] Chunking and embedding transcript...")
             chunks_data = embed_new_transcript(transcript)
@@ -47,7 +50,8 @@ class SalesCallEvaluator:
                     chunk_data['chunk_text'],
                     similar_chunks,
                     chunk_data['context_prev'],
-                    chunk_data['context_next']
+                    chunk_data['context_next'],
+                    business_rules=business_rules
                 )
                 
                 chunk_analyses.append({
@@ -59,7 +63,7 @@ class SalesCallEvaluator:
             
             # Aggregate all chunk analyses into final report
             print("[Evaluator] Aggregating chunk analyses into final report...")
-            final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses])
+            final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses], business_rules=business_rules)
             
             print("[Evaluator] Evaluation complete.")
             
