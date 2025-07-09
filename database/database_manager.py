@@ -547,5 +547,15 @@ class DatabaseManager:
             print(f"[Database] Error deleting business rule: {e}")
             return False
 
+    def delete_call(self, call_id: str) -> bool:
+        """Delete a specific call and all its related data."""
+        try:
+            # Delete the call (this will cascade to related tables due to foreign key constraints)
+            result = self.client.table('calls').delete().eq('id', call_id).execute()
+            return len(result.data) > 0 if result.data else False
+        except Exception as e:
+            print(f"[Database] Error deleting call: {e}")
+            return False
+
 # Note: Global instance removed to prevent connection on import
 # Use DatabaseManager() when needed 

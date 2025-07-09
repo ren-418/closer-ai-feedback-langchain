@@ -331,6 +331,33 @@ async def mark_calls_as_read(request: MarkAsReadRequest, current_user: Dict = De
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/calls/{call_id}", dependencies=[Depends(verify_token)])
+async def delete_call(call_id: str):
+    """Delete a specific call and all its related data."""
+    try:
+        # First check if call exists
+        call = db_manager.get_call_by_id(call_id)
+        if not call:
+            raise HTTPException(status_code=404, detail="Call not found")
+        
+        # Delete the call (this should cascade to related tables due to foreign key constraints)
+        success = db_manager.delete_call(call_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete call")
+        
+        return {
+            "status": "success",
+            "message": f"Call {call_id} has been deleted",
+            "deleted_call": {
+                "id": call_id,
+                "closer_name": call.get('closer_name', 'Unknown'),
+                "closer_email": call.get('closer_email', 'Unknown'),
+                "lead_name": call.get('lead_name', 'Unknown')
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/analytics/leaderboard", dependencies=[Depends(verify_token)])
 async def get_leaderboard():
     """Get closers leaderboard."""
