@@ -262,8 +262,18 @@ class DatabaseManager:
 
             def aggregate_insights(filtered_calls):
                 strengths, weaknesses, focus_areas = [], [], []
+                if not filtered_calls:
+                    return {
+                        'common_strengths': [],
+                        'common_weaknesses': [],
+                        'team_focus_areas': []
+                    }
+                # Fetch all final analyses for these calls
+                call_ids = [call['id'] for call in filtered_calls if 'id' in call]
+                final_analyses_result = self.client.table('final_analyses').select('*').in_('call_id', call_ids).execute()
+                final_analysis_map = {fa['call_id']: fa['analysis_data'] for fa in final_analyses_result.data} if final_analyses_result.data else {}
                 for call in filtered_calls:
-                    final = call.get('final_analysis', {})
+                    final = final_analysis_map.get(call['id'], {})
                     detailed = final.get('detailed_analysis', {})
                     for cat in detailed.values():
                         strengths += cat.get('strengths', [])
