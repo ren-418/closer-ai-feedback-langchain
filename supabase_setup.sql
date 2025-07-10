@@ -178,34 +178,43 @@ ALTER TABLE criteria_violations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read access for all users" ON users FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON users FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update access for all users" ON users FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON users FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON closers FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON closers FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update access for all users" ON closers FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON closers FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON calls FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON calls FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update access for all users" ON calls FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON calls FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON admin_call_reads FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON admin_call_reads FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update access for all users" ON admin_call_reads FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON admin_call_reads FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON call_analyses FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON call_analyses FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable delete access for all users" ON call_analyses FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON final_analyses FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON final_analyses FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable delete access for all users" ON final_analyses FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON performance_metrics FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON performance_metrics FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable delete access for all users" ON performance_metrics FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON evaluation_criteria FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON evaluation_criteria FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update access for all users" ON evaluation_criteria FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON evaluation_criteria FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON criteria_violations FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON criteria_violations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable delete access for all users" ON criteria_violations FOR DELETE USING (true);
 
 -- Success message
 SELECT 'Database schema created successfully!' as status; 
