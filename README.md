@@ -1,103 +1,63 @@
-# 📞 AI Sales Call Evaluator for Closers
+# 📞 Closer AI Sales Call Evaluator
 
 ## Overview
-This project analyzes sales call transcripts using AI (OpenAI GPT-4), scores closers on key criteria, extracts insights, and stores results in a cloud database for reporting and improvement tracking.
 
-## Features
-- Automatic transcript analysis and scoring
-- Key insight extraction (questions, objections, sentiment)
-- Structured, actionable feedback
-- Historical performance tracking
-- Supabase integration for data storage
-- Ready for automation (n8n/Make.com)
-
-## Setup
-1. Clone the repo
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Copy `.env.example` to `.env` and fill in your API keys
-4. Run the main script or use the API endpoints
-
-## Directory Structure
-- `main.py`: Entry point
-- `langchain/`: Core AI logic
-- `db/`: Database models and utils
-- `data/`: Sample data
-- `embeddings/`: Embedding logic
-- `sample_transcripts/`: Example transcripts
-- `make-workflows/`: Automation scripts
-
-## Usage
-- Place transcripts in `sample_transcripts/` for testing
-- Run analysis via `main.py` or API
-- Results are stored in Supabase
-
-## API Keys
-See `.env.example` for required environment variables.
-
-## Roadmap
-- [x] Transcript Analyzer
-- [x] AI Scoring Engine
-- [x] Insight Extractor
-- [x] Database + Schema
-- [ ] Closer Performance Dashboard (separate project)
-- [ ] Automation Workflow (n8n/Make)
-- [x] Setup Guide & Documentation
-
----
-For more details, see the project plan in the repo.
+**Closer AI Sales Call Evaluator** is a robust, production-grade platform for analyzing sales call transcripts using OpenAI GPT-4, LangChain, and Supabase. It provides detailed, actionable feedback for sales teams, detects business rule violations at the chunk level, and supports advanced analytics, automation, and reporting.
 
 ---
 
-## 📌 Features
+## ✨ Key Features
 
-- �� Grades sales calls based on:
-  - Rapport-building
-  - Discovery
-  - Objection handling
-  - Pitch delivery
-  - Closing effectiveness
-- 🧠 Uses GPT + LangChain + Embeddings to analyze and compare with "good" calls
-- 📁 Stores structured feedback in a relational DB (Supabase)
-- 📈 Provides coaching-style suggestions and overall call grades
-- 🔄 Automates the pipeline using Make.com
+- **Automated Transcript Analysis**: Processes and chunks transcripts, embedding each chunk for context-aware evaluation.
+- **Dynamic Business Rules**: Enforce and update business rules (e.g., currency, compliance) at the chunk level, with violation detection and scoring penalties.
+- **Reference-Based Scoring**: Compares each chunk to high-quality reference calls using vector search (Pinecone).
+- **Chunk-Level & Aggregated Reporting**: Returns detailed JSON for each chunk and a comprehensive, aggregated final report.
+- **Async Analysis & Webhook Notification**: Supports background processing and notifies external systems (e.g., Make.com) on completion.
+- **Supabase Integration**: Stores all calls, analyses, business rules, and analytics in a scalable cloud database.
+- **Leaderboard & Analytics**: Team and individual performance dashboards, coaching insights, and time-based metrics.
+- **Admin Controls**: Secure authentication, call and rule management, and audit logging.
+- **Prompt Logging**: All LLM prompts are logged for transparency and debugging.
+- **API-First**: FastAPI backend with endpoints for all major operations.
 
 ---
 
 ## 🗂️ Project Structure
 
 ```
-/ai-sales-evaluator
+closer-ai-feedback-langchain/
+├── api.py                  # FastAPI backend
+├── main.py                 # CLI entry point for local analysis
+├── database/
+│   └── database_manager.py # Supabase integration and business logic
+├── embeddings/
+│   ├── embed_good_calls.py # Embedding reference calls
+│   └── pinecone_store.py   # Pinecone vector store manager
+├── langchain_script/
+│   ├── analysis.py         # Core chunk/final analysis logic
+│   ├── evaluator.py        # Transcript evaluation pipeline
+│   └── transcript_parser.py# Transcript chunking utilities
 ├── data/
-│   └── good_calls/        # Local folder for good call training transcripts (excluded from Git)
-├── langchain/
-│   └── evaluator.py       # LangChain RAG pipeline for analyzing transcripts
-├── db/
-│   └── schema.sql         # SQL schema for Supabase/Firebase
-├── make-workflows/
-│   └── webhook-handler.json
-├── sample_transcripts/
-│   └── sample_call.json   # Example transcript format
-├── .gitignore
+│   └── good_calls/         # Reference transcripts (not in repo)
+├── requirements.txt
 ├── README.md
-└── requirements.txt
+└── supabase_setup.sql      # Database schema
 ```
 
 ---
 
 ## ⚙️ Tech Stack
 
-- **LangChain** – Embedding + Retrieval-Augmented Generation (RAG)
-- **OpenAI API** – GPT-4 + Embedding Models
-- **Supabase** – Cloud PostgreSQL with PGVector support
-- **Make.com** – Workflow automation (trigger on Fathom transcripts)
-- **Optional**: React + Tailwind CSS frontend for dashboard
+- **OpenAI GPT-4** – LLM for deep analysis
+- **LangChain** – RAG, prompt management, chunking
+- **Pinecone** – Vector search for reference matching
+- **Supabase** – Cloud PostgreSQL (with RLS, cascade, analytics)
+- **FastAPI** – Secure, modern API
+- **Make.com** – Workflow automation (webhook integration)
+- **Optional**: React + Tailwind CSS frontend
 
 ---
 
-## 🚀 Setup Instructions
+## 🚀 Quickstart
 
 ### 1. Clone the Repository
 
@@ -106,63 +66,92 @@ git clone https://github.com/ren-418/closer-ai-feedback-langchain.git
 cd closer-ai-feedback-langchain
 ```
 
-### 2. Create Virtual Environment & Install Dependencies
+### 2. Install Dependencies
 
 ```bash
 python -m venv venv
-source venv/bin/activate   # or venv\Scripts\activate on Windows
-
+source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 ```
 
-### 3. Setup Environment Variables
+### 3. Configure Environment
 
-Create a `.env` file:
+Copy `.env.example` to `.env` and fill in:
 
 ```
 OPENAI_API_KEY=your_openai_key
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_API_KEY=your_supabase_key
+SUPABASE_KEY=your_supabase_key
+PINECONE_API_KEY=your_pinecone_key
+PINECONE_CLOUD=aws
+PINECONE_REGION=us-east-1
 ```
 
-### 4. Prepare Vector Store
+### 4. Prepare Reference Data
 
-- Load good call transcripts into `data/good_calls`
-- Run `langchain/embed_good_calls.py` to embed and store vectors
+- Place high-quality reference transcripts in `data/good_calls/`
+- Run:
+  ```bash
+  python embeddings/embed_good_calls.py
+  ```
 
-### 5. Run LangChain RAG Pipeline
+### 5. Set Up Supabase
+
+- Run `supabase_setup.sql` in your Supabase SQL editor to create tables and policies.
+- If you already have a database, ensure DELETE policies are present for RLS (see `add_delete_policies.sql` if needed).
+
+### 6. Run the API Server
 
 ```bash
-python langchain/evaluator.py
+uvicorn api:app --reload
+```
+
+### 7. Analyze a Call (CLI)
+
+```bash
+python main.py path/to/transcript.txt
 ```
 
 ---
 
-## 🛑 Data Privacy Note
+## 🛡️ Security & Data Privacy
 
-🔒 **Real transcripts are not included** in the repo to protect client confidentiality.
-
-Add them locally under:
-
-```
-data/good_calls/
-```
-
-This folder is excluded via `.gitignore`.
+- **RLS**: Row Level Security is enabled on all tables.
+- **No real transcripts** are included in the repo.
+- All prompts and analyses are logged for auditability.
 
 ---
 
-## 🛠️ TODO / Roadmap
+## 🧠 Advanced Capabilities
 
-- [x] LangChain QA pipeline
-- [x] Supabase schema + integration
-- [ ] Fathom integration via Make.com
-- [ ] Dashboard frontend (React)
-- [ ] Admin controls and export options
+- **Business Rules Engine**: Add, update, or remove rules via API. Violations are detected per chunk and aggregated in reports.
+- **Chunk-Level Analysis**: Each transcript is split and analyzed in context, with reference matching and business rule enforcement.
+- **Async Processing**: New calls can be submitted for background analysis, with webhook notification on completion.
+- **Comprehensive Analytics**: Leaderboards, coaching insights, and time-based performance metrics for teams and individuals.
+- **Admin & API Controls**: Secure endpoints for user, closer, call, and rule management.
 
 ---
 
-## 👨‍💻 Author
+## 📈 Example Use Cases
+
+- **Sales Team Coaching**: Identify strengths, weaknesses, and compliance issues in real calls.
+- **QA & Compliance**: Enforce business rules (e.g., currency, legal language) and detect violations in real time.
+- **Automated Reporting**: Integrate with Make.com or other tools for workflow automation and notifications.
+
+---
+
+## 🛠️ Roadmap
+
+- [x] Dynamic business rules (API-managed)
+- [x] Chunk-level violation detection
+- [x] Async analysis & webhook notification
+- [x] Analytics dashboard (API)
+- [ ] React frontend (optional)
+- [ ] More granular RLS policies
+
+---
+
+## 👤 Author
 
 **Ren** – AI Full-Stack Developer & Automation Specialist
 
