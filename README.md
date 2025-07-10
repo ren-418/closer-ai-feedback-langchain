@@ -104,6 +104,7 @@ PINECONE_REGION=us-east-1
 
 ```bash
 uvicorn api:app --reload
+python api.py
 ```
 
 ### 7. Analyze a Call (CLI)
