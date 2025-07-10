@@ -548,13 +548,34 @@ class DatabaseManager:
             return False
 
     def delete_call(self, call_id: str) -> bool:
-        """Delete a specific call and all its related data."""
+        """Delete a specific call and all its related data.
+        
+        Due to foreign key constraints with ON DELETE CASCADE, this will automatically delete:
+        - admin_call_reads records
+        - call_analyses records  
+        - final_analyses records
+        - performance_metrics records
+        - criteria_violations records
+        """
         try:
-            # Delete the call (this will cascade to related tables due to foreign key constraints)
+            # First check if call exists
+            existing_call = self.client.table('calls').select('id').eq('id', call_id).execute()
+            if not existing_call.data:
+                print(f"[Database] Call {call_id} not found for deletion")
+                return False
+            
+            # Delete the call (this will cascade to all related tables due to foreign key constraints)
             result = self.client.table('calls').delete().eq('id', call_id).execute()
-            return len(result.data) > 0 if result.data else False
+            
+            if result.data and len(result.data) > 0:
+                print(f"[Database] Successfully deleted call {call_id} and all related data")
+                return True
+            else:
+                print(f"[Database] No call was deleted for ID {call_id}")
+                return False
+                
         except Exception as e:
-            print(f"[Database] Error deleting call: {e}")
+            print(f"[Database] Error deleting call {call_id}: {e}")
             return False
 
 # Note: Global instance removed to prevent connection on import
