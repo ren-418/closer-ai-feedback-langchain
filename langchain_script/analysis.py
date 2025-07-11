@@ -330,7 +330,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     print(f"[Token Management] Final prompt: {calculate_prompt_tokens(prompt)} tokens")
     return prompt
 
-def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3, business_rules: List[Dict] = None) -> Dict:
+def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3, business_rules: List[Dict] = None, chunk_number: int = None) -> Dict:
     """
     Analyze a chunk using RAG with reference examples from good calls and context window.
     Returns enhanced analysis with reference file tracking and token safety.
@@ -338,7 +338,20 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
     """
     try:
         prompt = build_chunk_analysis_prompt(chunk_text, reference_chunks, context_prev, context_next, business_rules)
-        
+
+        # Save the prompt as a JSON file for inspection
+        prompt_save = {
+            "chunk_number": chunk_number,
+            "prompt": prompt,
+            "context_prev": context_prev,
+            "context_next": context_next,
+            "reference_chunks_count": len(reference_chunks),
+            "business_rules_count": len(business_rules) if business_rules else 0
+        }
+        fname = f"chunk_prompt_{chunk_number if chunk_number is not None else 'unknown'}.json"
+        with open(fname, "w", encoding="utf-8") as f:
+            json.dump(prompt_save, f, ensure_ascii=False, indent=2)
+
         # Final safety check
         prompt_tokens = calculate_prompt_tokens(prompt)
         if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
@@ -354,6 +367,7 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
         # Dynamically set max_tokens with buffer
         allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
         allowed_max_tokens = max(256, allowed_max_tokens)
+
         if allowed_max_tokens < MAX_RESPONSE_TOKENS:
             print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window (with buffer).")
         response = openai_client.chat.completions.create(
@@ -611,10 +625,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         "0-59.9  = E."
     )
     print("businness rules from db :::", "violations collected from chunks" if all_violations else "<none>")
-    with open("prompt_output.txt", "w", encoding="utf-8") as f:
-        f.write(prompt)
-
-    print("Final prompt saved to prompt_output.txt ✅")
+    
     # Check token count and summarize rules if needed
     prompt_tokens = calculate_prompt_tokens(prompt)
     if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
