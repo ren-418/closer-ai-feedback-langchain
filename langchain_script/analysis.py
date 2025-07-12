@@ -283,7 +283,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '    "letter_grade": "A",\n'
         '    "detailed_metrics": {\n'
         '      "rapport_building": {"score": 8},\n'
-        '      "discovery": {"score": 7},\n'
+        '      "discovery_qualification": {"score": 7},\n'
         '      "objection_handling": {"score": 9},\n'
         '      "closing_effectiveness": {"score": 7}\n'
         '    }\n'
