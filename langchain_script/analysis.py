@@ -873,9 +873,31 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     # Calculate overall_score as before
     overall_score = total_score / total_chunks_with_scores if total_chunks_with_scores > 0 else 0
 
-    # Calculate overall_performance from available category scores (ignore None)
-    available_scores = [detailed_analysis[cat]['score'] for cat in categories if detailed_analysis[cat]['score'] is not None]
-    overall_performance = sum(available_scores) / len(available_scores) if available_scores else 0
+    # Restore letter_grade calculation
+    if overall_score >= 94:
+        letter_grade = "A"
+    elif overall_score >= 90:
+        letter_grade = "A-"
+    elif overall_score >= 87:
+        letter_grade = "B+"
+    elif overall_score >= 84:
+        letter_grade = "B"
+    elif overall_score >= 80:
+        letter_grade = "B-"
+    elif overall_score >= 77:
+        letter_grade = "C+"
+    elif overall_score >= 74:
+        letter_grade = "C"
+    elif overall_score >= 70:
+        letter_grade = "C-"
+    elif overall_score >= 67:
+        letter_grade = "D+"
+    elif overall_score >= 64:
+        letter_grade = "D"
+    elif overall_score >= 60:
+        letter_grade = "D-"
+    else:
+        letter_grade = "E"
 
     # Build final report with exact structure expected by frontend
     final_report = {
