@@ -223,7 +223,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         "Unacceptable: 'Should ask more discovery questions.'\n"
         "Acceptable: 'The closer missed an opportunity to ask about the lead's current workflow after the lead described their manual process. The closer should have asked: \"Can you walk me through your current process step by step?\" and \"What are the biggest bottlenecks you face day-to-day?\"'\n"
         "\n"
-        "Respond in this EXACT JSON format:\n"
+        "Respond in this EXACT JSON format (note: for each item in 'detailed_analysis', include 'strengths' and 'weaknesses' arrays, and omit the 'comment' field from 'detailed_metrics'):\n"
         "{\n"
         '  "analysis_metadata": {\n'
         '    "chunk_number": 1,\n'
@@ -282,28 +282,40 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '    "overall_score": 85,\n'
         '    "letter_grade": "A",\n'
         '    "detailed_metrics": {\n'
-        '      "rapport_building": {"score": 8, "comment": "Specific feedback"},\n'
-        '      "discovery": {"score": 7, "comment": "Specific feedback"},\n'
-        '      "objection_handling": {"score": 9, "comment": "Specific feedback"},\n'
-        '      "pitch_delivery": {"score": 8, "comment": "Specific feedback"},\n'
-        '      "closing_effectiveness": {"score": 7, "comment": "Specific feedback"}\n'
+        '      "rapport_building": {"score": 8},\n'
+        '      "discovery": {"score": 7},\n'
+        '      "objection_handling": {"score": 9},\n'
+        '      "pitch_delivery": {"score": 8},\n'
+        '      "closing_effectiveness": {"score": 7}\n'
         '    }\n'
         '  },\n'
         '  "detailed_analysis": {\n'
         '    "objection_handling": {\n'
+        '      "score": 9,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
         '      "handling_techniques_used": ["specific technique 1", "specific technique 2"],\n'
         '      "objections_encountered": ["specific objection 1", "specific objection 2"]\n'
         '    },\n'
-        '    "engagement_rapport": {\n'
+        '    "rapport_building": {\n'
+        '      "score": 8,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
         '      "rapport_building_moments": ["specific moment 1", "specific moment 2"]\n'
         '    },\n'
         '    "discovery_qualification": {\n'
+        '      "score": 7,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
         '      "information_gathered": ["specific info 1", "specific info 2"],\n'
         '      "qualification_questions": ["specific question 1", "specific question 2"]\n'
         '    },\n'
         '    "closing_effectiveness": {\n'
+        '      "score": 7,\n'
+        '      "strengths": ["strength 1", "strength 2"],\n'
+        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
         '      "closing_attempts": ["specific attempt 1", "specific attempt 2"],\n'
-        '      "payment_discussion": "Specific payment discussion details from transcript"\n'
+        '      "payment_discussion": ["specific payment discussion1","specific payment discussion2"]\n'
         '    }\n'
         '  },\n'
         '  "key_insights": {\n'
@@ -773,10 +785,9 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     # Initialize detailed analysis structure
     detailed_analysis = {
         'objection_handling': {'score': 0, 'strengths': [], 'weaknesses': [], 'objections_encountered': [], 'handling_techniques_used': []},
-        'engagement_rapport': {'score': 0, 'strengths': [], 'weaknesses': [], 'rapport_building_moments': []},
+        'rapport_building': {'score': 0, 'strengths': [], 'weaknesses': [], 'rapport_building_moments': []},
         'discovery_qualification': {'score': 0, 'strengths': [], 'weaknesses': [], 'information_gathered': [], 'qualification_questions': []},
-        'closing_effectiveness': {'score': 0, 'strengths': [], 'weaknesses': [], 'closing_attempts': [], 'payment_discussion': ''},
-        'pitch_delivery': {'score': 0, 'strengths': [], 'weaknesses': []}  # Add pitch_delivery category
+        'closing_effectiveness': {'score': 0, 'strengths': [], 'weaknesses': [], 'closing_attempts': [], 'payment_discussion': []},
     }
     
     total_score = 0
@@ -827,11 +838,21 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
                 detailed_analysis['objection_handling']['handling_techniques_used'].append(f"{technique}")
             for objection in objection_handling.get('objections_encountered', []):
                 detailed_analysis['objection_handling']['objections_encountered'].append(f"{objection}")
+            # Add strengths/weaknesses for objection_handling
+            for strength in objection_handling.get('strengths', []):
+                detailed_analysis['objection_handling']['strengths'].append(strength)
+            for weakness in objection_handling.get('weaknesses', []):
+                detailed_analysis['objection_handling']['weaknesses'].append(weakness)
             
             # Engagement & rapport
-            engagement_rapport = detailed.get('engagement_rapport', {})
-            for moment in engagement_rapport.get('rapport_building_moments', []):
-                detailed_analysis['engagement_rapport']['rapport_building_moments'].append(f"{moment}")
+            rapport_building = detailed.get('rapport_building', {})
+            for moment in rapport_building.get('rapport_building_moments', []):
+                detailed_analysis['rapport_building']['rapport_building_moments'].append(f"{moment}")
+            # Add strengths/weaknesses for engagement_rapport
+            for strength in rapport_building.get('strengths', []):
+                detailed_analysis['rapport_building']['strengths'].append(strength)
+            for weakness in rapport_building.get('weaknesses', []):
+                detailed_analysis['rapport_building']['weaknesses'].append(weakness)
             
             # Discovery & qualification
             discovery_qualification = detailed.get('discovery_qualification', {})
@@ -839,6 +860,11 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
                 detailed_analysis['discovery_qualification']['information_gathered'].append(f"{info}")
             for question in discovery_qualification.get('qualification_questions', []):
                 detailed_analysis['discovery_qualification']['qualification_questions'].append(f"{question}")
+            # Add strengths/weaknesses for discovery_qualification
+            for strength in discovery_qualification.get('strengths', []):
+                detailed_analysis['discovery_qualification']['strengths'].append(strength)
+            for weakness in discovery_qualification.get('weaknesses', []):
+                detailed_analysis['discovery_qualification']['weaknesses'].append(weakness)
             
             # Closing effectiveness
             closing_effectiveness = detailed.get('closing_effectiveness', {})
@@ -846,6 +872,11 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
                 detailed_analysis['closing_effectiveness']['closing_attempts'].append(f"{attempt}")
             if closing_effectiveness.get('payment_discussion'):
                 detailed_analysis['closing_effectiveness']['payment_discussion'] += f"{closing_effectiveness['payment_discussion']} "
+            # Add strengths/weaknesses for closing_effectiveness
+            for strength in closing_effectiveness.get('strengths', []):
+                detailed_analysis['closing_effectiveness']['strengths'].append(strength)
+            for weakness in closing_effectiveness.get('weaknesses', []):
+                detailed_analysis['closing_effectiveness']['weaknesses'].append(weakness)
             
             # Collect scores for averaging
             scoring = analysis.get('scoring', {})
@@ -894,7 +925,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     
     # Calculate overall performance from detailed analysis scores for consistency
     detailed_scores = [
-        detailed_analysis["engagement_rapport"]["score"],
+        detailed_analysis["rapport_building"]["score"],
         detailed_analysis["discovery_qualification"]["score"],
         detailed_analysis["objection_handling"]["score"],
         detailed_analysis["pitch_delivery"]["score"],
