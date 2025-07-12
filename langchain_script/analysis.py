@@ -417,8 +417,7 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
 def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Dict] = None) -> Dict:
     """
     Aggregate all chunk-level analyses into a comprehensive evaluation report.
-    Returns a professional summary with reference file tracking and token safety.
-    Dynamically sets max_tokens to avoid context window errors, with a safety buffer.
+    Uses the detailed chunk analysis results directly to preserve specificity.
     """
     # Collect all reference files used across chunks
     all_reference_files = set()
@@ -442,316 +441,168 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             total_violations += analysis['custom_business_rules'].get('total_violations', 0)
             total_score_penalty += analysis['custom_business_rules'].get('total_score_penalty', 0)
     
-    # Prepare chunk summaries for aggregation
-    chunk_summaries = []
+    # Extract all detailed information from chunk analyses
+    all_strengths = []
+    all_weaknesses = []
+    all_coaching_recommendations = []
+    all_lead_questions = []
+    all_objections = []
+    all_concerns = []
+    all_scores = []
+    
     for i, analysis in enumerate(chunk_analyses):
         if 'error' not in analysis:
-            summary = {
-                'chunk_number': i + 1,
-                'overall_score': analysis.get('scoring', {}).get('overall_score', 0),
-                'letter_grade': analysis.get('scoring', {}).get('letter_grade', 'C'),
-                'key_strengths': [s.get('description', '') for s in analysis.get('closer_performance', {}).get('strengths', [])],
-                'key_weaknesses': [w.get('description', '') for w in analysis.get('closer_performance', {}).get('weaknesses', [])],
-                'objections': analysis.get('lead_interaction', {}).get('objections_raised', []),
-                'questions': analysis.get('lead_interaction', {}).get('questions_asked', [])
-            }
-            chunk_summaries.append(summary)
+            chunk_num = i + 1
+            
+            # Extract strengths with chunk context
+            if 'closer_performance' in analysis and 'strengths' in analysis['closer_performance']:
+                for strength in analysis['closer_performance']['strengths']:
+                    strength['chunk_number'] = chunk_num
+                    all_strengths.append(strength)
+            
+            # Extract weaknesses with chunk context
+            if 'closer_performance' in analysis and 'weaknesses' in analysis['closer_performance']:
+                for weakness in analysis['closer_performance']['weaknesses']:
+                    weakness['chunk_number'] = chunk_num
+                    all_weaknesses.append(weakness)
+            
+            # Extract coaching recommendations with chunk context
+            if 'coaching_recommendations' in analysis:
+                for rec in analysis['coaching_recommendations']:
+                    rec['chunk_number'] = chunk_num
+                    all_coaching_recommendations.append(rec)
+            
+            # Extract lead interactions
+            if 'lead_interaction' in analysis:
+                lead_int = analysis['lead_interaction']
+                for question in lead_int.get('questions_asked', []):
+                    all_lead_questions.append(f"Chunk {chunk_num}: {question}")
+                for objection in lead_int.get('objections_raised', []):
+                    all_objections.append(f"Chunk {chunk_num}: {objection}")
+                for concern in lead_int.get('concerns_expressed', []):
+                    all_concerns.append(f"Chunk {chunk_num}: {concern}")
+            
+            # Extract scores
+            if 'scoring' in analysis:
+                score_info = {
+                    'chunk_number': chunk_num,
+                    'overall_score': analysis['scoring'].get('overall_score', 0),
+                    'letter_grade': analysis['scoring'].get('letter_grade', 'C'),
+                    'detailed_metrics': analysis['scoring'].get('detailed_metrics', {})
+                }
+                all_scores.append(score_info)
     
-    # Create business rules section for final report
-    if all_violations:
-        rules_section = (
-            f"BUSINESS RULES VIOLATIONS FOUND: {total_violations} violations across all chunks with total penalty of {total_score_penalty} points.\n\n"
-            "The following violations were detected in the actual transcript:\n"
-        )
-        for i, violation in enumerate(all_violations, 1):
-            rules_section += f"{i}. Chunk {violation.get('chunk_number', 'Unknown')}: {violation.get('violation_text', '')} → {violation.get('correct_text', '')} ({violation.get('explanation', '')})\n"
+    # Calculate overall scores
+    if all_scores:
+        overall_score = sum(score['overall_score'] for score in all_scores) / len(all_scores)
+        # Determine letter grade based on overall score
+        if overall_score >= 94:
+            letter_grade = "A"
+        elif overall_score >= 90:
+            letter_grade = "A-"
+        elif overall_score >= 87:
+            letter_grade = "B+"
+        elif overall_score >= 84:
+            letter_grade = "B"
+        elif overall_score >= 80:
+            letter_grade = "B-"
+        elif overall_score >= 77:
+            letter_grade = "C+"
+        elif overall_score >= 74:
+            letter_grade = "C"
+        elif overall_score >= 70:
+            letter_grade = "C-"
+        elif overall_score >= 67:
+            letter_grade = "D+"
+        elif overall_score >= 64:
+            letter_grade = "D"
+        elif overall_score >= 60:
+            letter_grade = "D-"
+        else:
+            letter_grade = "E"
     else:
-        rules_section = (
-            "NO BUSINESS RULES VIOLATIONS FOUND in any chunk.\n\n"
-        )
-
-    prompt = (
-        "You are an expert sales call evaluator creating a comprehensive final report. "
-        "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
-        "CHUNK ANALYSES SUMMARY:\n"
-        f"{json.dumps(chunk_summaries, indent=2)}\n\n"
-        "REFERENCE FILES USED:\n"
-        f"{', '.join(all_reference_files)}\n\n"
-        f"{rules_section}"
-        "Create a comprehensive final report that includes:\n"
-        "1. **Executive Summary**: Overall performance assessment\n"
-        "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
-        "3. **Objection Handling Review**: How well objections were managed throughout the call\n"
-        "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
-        "5. **Discovery & Qualification**: How well the closer gathered information\n"
-        "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
-        "7. **Custom Business Rules**: Violations found and their impact (from chunk analysis)\n"
-        "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
-        "9. **Reference Comparisons**: How this call compares to successful examples\n"
-        "\n"
-        "***CRITICAL INSTRUCTION:*** All feedback, especially for weaknesses and coaching recommendations, must be extremely specific, detailed, and actionable.\n"
-        "- Reference the exact lines or phrases from the transcript for every point.\n"
-        "- For every weakness, enumerate precisely what was missing, unclear, or insufficient, and explain why.\n"
-        "- List the actual questions the closer asked that were weak or insufficient, and explain why they were not effective.\n"
-        "- Suggest specific, context-aware questions the closer could have asked instead, tailored to the lead's situation.\n"
-        "- If a solution or alternative was missing, describe in detail what solution(s) could have been offered, and how they should be presented to the lead.\n"
-        "- For each coaching recommendation, provide a step-by-step, concrete example of how to implement it in a real conversation.\n"
-        "- Identify any missed opportunities and specify exactly what should have been done differently, with sample dialogue.\n"
-        "- ***Generic, vague, or high-level feedback is unacceptable and will be rejected.***\n"
-        "- All feedback must be actionable and directly tied to the transcript content.\n"
-        "\n"
-        "EXAMPLES OF FEEDBACK (Unacceptable vs. Acceptable):\n"
-        "Unacceptable: 'Could have probed deeper into the lead's needs.'\n"
-        "Acceptable: 'The closer failed to ask about the lead's budget after the lead mentioned cost concerns (\"I'm not sure if this fits our budget\"). Instead, the closer should have asked: \"What budget range are you working with for this project?\" and \"Are there any financial constraints we should be aware of?\"'\n"
-        "\n"
-        "Unacceptable: 'Should provide clear solutions.'\n"
-        "Acceptable: 'When the lead expressed concern about onboarding (\"I'm worried about how long it will take to get started\"), the closer did not address this. The closer should have responded: \"We offer a dedicated onboarding specialist who will guide you step-by-step, and most clients are fully set up within two weeks. Would you like to hear how this worked for a similar client?\"'\n"
-        "\n"
-        "Unacceptable: 'Could have handled objections better.'\n"
-        "Acceptable: 'When the lead said, \"I'm not sure your solution integrates with our CRM,\" the closer only replied, \"We have many integrations.\" Instead, the closer should have asked, \"Which CRM are you using?\" and then provided a specific example: \"We recently helped a client with Salesforce integration—here's how we did it.\"'\n"
-        "\n"
-        "Unacceptable: 'Should ask more discovery questions.'\n"
-        "Acceptable: 'The closer missed an opportunity to ask about the lead's current workflow after the lead described their manual process. The closer should have asked: \"Can you walk me through your current process step by step?\" and \"What are the biggest bottlenecks you face day-to-day?\"'\n"
-        "\n"
-        "Respond in this EXACT JSON format (structure is required, but all content must be based on the actual texts, this is only type of response :\n"
-        "{\n"
-        '  "report_metadata": {\n'
-        '    "total_chunks_analyzed": 5,\n'
-        '    "reference_files_used": ["file1.txt (John Doe)", "file2.txt (Jane Smith)"],\n'
-        '    "analysis_timestamp": "2024-01-01T12:00:00Z",\n'
-        '    "call_duration_estimated": "15 minutes"\n'
-        '  },\n'
-        '  "executive_summary": {\n'
-        '    "overall_assessment": "Professional summary of call performance",\n'
-        '    "overall_score": 85,\n'
-        '    "letter_grade": "A",\n'
-        '    "key_highlights": ["highlight 1", "highlight 2"],\n'
-        '    "critical_areas": ["area 1", "area 2"]\n'
-        '  },\n'
-        '  "detailed_analysis": {\n'
-        '    "objection_handling": {\n'
-        '      "score": 8,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "objections_encountered": ["objection 1", "objection 2"],\n'
-        '      "handling_techniques_used": ["technique 1", "technique 2"]\n'
-        '    },\n'
-        '    "engagement_rapport": {\n'
-        '      "score": 9,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "rapport_building_moments": ["moment 1", "moment 2"]\n'
-        '    },\n'
-        '    "discovery_qualification": {\n'
-        '      "score": 7,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "information_gathered": ["info 1", "info 2"],\n'
-        '      "qualification_questions": ["question 1", "question 2"]\n'
-        '    },\n'
-        '    "closing_effectiveness": {\n'
-        '      "score": 8,\n'
-        '      "strengths": ["strength 1", "strength 2"],\n'
-        '      "weaknesses": ["weakness 1", "weakness 2"],\n'
-        '      "closing_attempts": ["attempt 1", "attempt 2"],\n'
-        '      "payment_discussion": "How payment was discussed"\n'
-        '    }\n'
-        '  },\n'
-        '  "custom_business_rules": {\n'
-        '    "violations_found": [\n'
-        '      {\n'
-        '        "rule": "",\n'
-        '        "violation_text": "pounds",\n'
-        '        "context": "The price is 100 pounds",\n'
-        '        "correct_text": "dollars",\n'
-        '        "explanation": "Used incorrect currency - all transactions must be in USD",\n'
-        '        "score_impact": -2,\n'
-        '        "chunk_number": 1\n'
-        '      }\n'
-        '    ],\n'
-        '    "total_violations": 1,\n'
-        '    "total_score_penalty": -2,\n'
-        '    "recommendations": [\n'
-        '      "Always use \'dollars\' when discussing pricing",\n'
-        '      "Review company currency guidelines"\n'
-        '    ]\n'
-        '  },\n'
-        '  "coaching_recommendations": [\n'
-        '    {\n'
-        '      "priority": "high/medium/low",\n'
-        '      "category": "objection_handling/engagement/discovery/closing",\n'
-        '      "recommendation": "Specific coaching advice",\n'
-        '      "reference_example": "How successful closers handle this",\n'
-        '      "expected_impact": "What improvement this will bring"\n'
-        '    }\n'
-        '  ],\n'
-        '  "reference_comparisons": {\n'
-        '    "similarities_to_successful_calls": ["similarity 1", "similarity 2"],\n'
-        '    "differences_from_successful_calls": ["difference 1", "difference 2"],\n'
-        '    "best_practices_demonstrated": ["practice 1", "practice 2"],\n'
-        '    "missed_opportunities": ["opportunity 1", "opportunity 2"]\n'
-        '  },\n'
-        '  "lead_interaction_summary": {\n'
-        '    "total_questions_asked": 5,\n'
-        '    "total_objections_raised": 3,\n'
-        '    "questions_asked": ["specific question 1", "specific question 2"],\n'
-        '    "engagement_pattern": "high/medium/low",\n'
-        '    "buying_signals": ["signal 1", "signal 2"],\n'
-        '    "concerns_expressed": ["concern 1", "concern 2"]\n'
-        '  },\n'
-        '  "performance_metrics": {\n'
-        '    "rapport_building": 8,\n'
-        '    "discovery": 7,\n'
-        '    "objection_handling": 8,\n'
-        '    "pitch_delivery": 8,\n'
-        '    "closing_effectiveness": 8,\n'
-        '    "overall_performance": 8\n'
-        '  }\n'
-        "}\n"
-        "\nSCORING GUIDELINES:\n"
-        "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
-        "\nGRADE RULES (for letter_grade):\n"
-        "94-100  = A\n"
-        "90-93.9 = A-\n"
-        "87-89.9 = B+\n"
-        "84-86.9 = B\n"
-        "80-83.9 = B-\n"
-        "77-79.9 = C+\n"
-        "74-76.9 = C\n"
-        "70-73.9 = C-\n"
-        "67-69.9 = D+\n"
-        "64-66.9 = D\n"
-        "60-63.9 = D-\n"
-        "0-59.9  = E."
-    )
-    print("businness rules from db :::", "violations collected from chunks" if all_violations else "<none>")
+        overall_score = 0
+        letter_grade = "C"
     
-    # Check token count and summarize rules if needed
-    prompt_tokens = calculate_prompt_tokens(prompt)
-    if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
-        print(f"[Token Management] Aggregation prompt too long ({prompt_tokens} tokens), truncating...")
-        # Simplified prompt for long content
-        prompt = (
-            "You are an expert sales call evaluator creating a comprehensive final report. "
-            "Based on the following chunk-level analyses, provide a professional evaluation summary.\n\n"
-            "CHUNK ANALYSES SUMMARY:\n"
-            f"{json.dumps(chunk_summaries, indent=2)}\n\n"
-            "REFERENCE FILES USED:\n"
-            f"{', '.join(all_reference_files)}\n\n"
-            f"{rules_section}"
-            "Create a comprehensive final report that includes:\n"
-            "1. **Executive Summary**: Overall performance assessment\n"
-            "2. **Call Performance Analysis**: Detailed breakdown of strengths and weaknesses\n"
-            "3. **Objection Handling Review**: How well objections were managed throughout the call\n"
-            "4. **Engagement & Rapport Assessment**: Overall relationship building effectiveness\n"
-            "5. **Discovery & Qualification**: How well the closer gathered information\n"
-            "6. **Closing Effectiveness**: Assessment of closing techniques and results\n"
-            "7. **Custom Business Rules**: Violations found and their impact (from chunk analysis)\n"
-            "8. **Coaching Recommendations**: Priority-based improvement suggestions\n"
-            "9. **Reference Comparisons**: How this call compares to successful examples\n"
-            "\n"
-            "***CRITICAL INSTRUCTION:*** All feedback, especially for weaknesses and coaching recommendations, must be extremely specific, detailed, and actionable.\n"
-            "- Reference the exact lines or phrases from the transcript for every point.\n"
-            "- For every weakness, enumerate precisely what was missing, unclear, or insufficient, and explain why.\n"
-            "- List the actual questions the closer asked that were weak or insufficient, and explain why they were not effective.\n"
-            "- Suggest specific, context-aware questions the closer could have asked instead, tailored to the lead's situation.\n"
-            "- If a solution or alternative was missing, describe in detail what solution(s) could have been offered, and how they should be presented to the lead.\n"
-            "- For each coaching recommendation, provide a step-by-step, concrete example of how to implement it in a real conversation.\n"
-            "- Identify any missed opportunities and specify exactly what should have been done differently, with sample dialogue.\n"
-            "- ***Generic, vague, or high-level feedback is unacceptable and will be rejected.***\n"
-            "- All feedback must be actionable and directly tied to the transcript content.\n"
-            "\n"
-            "EXAMPLES OF FEEDBACK (Unacceptable vs. Acceptable):\n"
-            "Unacceptable: 'Could have probed deeper into the lead's needs.'\n"
-            "Acceptable: 'The closer failed to ask about the lead's budget after the lead mentioned cost concerns (\"I'm not sure if this fits our budget\"). Instead, the closer should have asked: \"What budget range are you working with for this project?\" and \"Are there any financial constraints we should be aware of?\"'\n"
-            "\n"
-            "Unacceptable: 'Should provide clear solutions.'\n"
-            "Acceptable: 'When the lead expressed concern about onboarding (\"I'm worried about how long it will take to get started\"), the closer did not address this. The closer should have responded: \"We offer a dedicated onboarding specialist who will guide you step-by-step, and most clients are fully set up within two weeks. Would you like to hear how this worked for a similar client?\"'\n"
-            "\n"
-            "Unacceptable: 'Could have handled objections better.'\n"
-            "Acceptable: 'When the lead said, \"I'm not sure your solution integrates with our CRM,\" the closer only replied, \"We have many integrations.\" Instead, the closer should have asked, \"Which CRM are you using?\" and then provided a specific example: \"We recently helped a client with Salesforce integration—here's how we did it.\"'\n"
-            "\n"
-            "Unacceptable: 'Should ask more discovery questions.'\n"
-            "Acceptable: 'The closer missed an opportunity to ask about the lead's current workflow after the lead described their manual process. The closer should have asked: \"Can you walk me through your current process step by step?\" and \"What are the biggest bottlenecks you face day-to-day?\"'\n"
-            "\n"
-            "Respond in this EXACT JSON format (structure is required, but all content must be based on the actual texts, this is only type of response :\n"
-            "{\n"
-            '  "report_metadata": { ... },\n'
-            '  "executive_summary": { ... },\n'
-            '  "detailed_analysis": { ... },\n'
-            '  "custom_business_rules": { ... },\n'
-            '  "coaching_recommendations": [ ... ],\n'
-            '  "reference_comparisons": { ... },\n'
-            '  "lead_interaction_summary": { ... },\n'
-            '  "performance_metrics": { ... }\n'
-            "}\n"
-            "\nSCORING GUIDELINES:\n"
-            "Only give a high score if there is a clear, strong reason. If there are significant issues or violations, do not hesitate to give a low score. Be strict and fair: reward excellence, penalize serious mistakes.\n"
-            "\nGRADE RULES (for letter_grade):\n"
-            "94-100  = A\n"
-            "90-93.9 = A-\n"
-            "87-89.9 = B+\n"
-            "84-86.9 = B\n"
-            "80-83.9 = B-\n"
-            "77-79.9 = C+\n"
-            "74-76.9 = C\n"
-            "70-73.9 = C-\n"
-            "67-69.9 = D+\n"
-            "64-66.9 = D\n"
-            "60-63.9 = D-\n"
-            "0-59.9  = E."
-        )
-    # Dynamically set max_tokens with buffer
-    allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
-    allowed_max_tokens = max(256, allowed_max_tokens)
-    if allowed_max_tokens < MAX_RESPONSE_TOKENS:
-        print(f"[Token Management] Reducing max_tokens from {MAX_RESPONSE_TOKENS} to {allowed_max_tokens} to fit context window (with buffer).")
-    try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=allowed_max_tokens
-        )
-        final_report = json.loads(response.choices[0].message.content)
-        # Ensure report_metadata exists and add reference files
-        if 'report_metadata' not in final_report:
-            final_report['report_metadata'] = {}
-        final_report['report_metadata']['reference_files_used'] = list(all_reference_files)
-        final_report['report_metadata']['analysis_timestamp'] = datetime.now().isoformat()
-        final_report['report_metadata']['total_chunks_analyzed'] = len(chunk_analyses)
-        final_report['report_metadata']['max_tokens_used'] = allowed_max_tokens
-        
-        # Add collected violations to final report
-        if all_violations:
-            if 'custom_business_rules' not in final_report:
-                final_report['custom_business_rules'] = {}
-            final_report['custom_business_rules']['violations_found'] = all_violations
-            final_report['custom_business_rules']['total_violations'] = total_violations
-            final_report['custom_business_rules']['total_score_penalty'] = total_score_penalty
-        
-        return final_report
-    except json.JSONDecodeError:
-        return {
-            "error": "Failed to parse LLM response as JSON",
-            "raw_response": response.choices[0].message.content if 'response' in locals() else "No response",
-            "report_metadata": {
-                "reference_files_used": list(all_reference_files),
-                "analysis_timestamp": datetime.now().isoformat(),
-                "total_chunks_analyzed": len(chunk_analyses),
-                "max_tokens_used": allowed_max_tokens
-            }
+    # Build detailed analysis sections
+    detailed_analysis = {
+        "objection_handling": {
+            "score": sum(score['detailed_metrics'].get('objection_handling', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
+            "strengths": [s['description'] for s in all_strengths if s.get('category') == 'objection_handling'],
+            "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'objection_handling'],
+            "objections_encountered": all_objections,
+            "handling_techniques_used": []
+        },
+        "engagement_rapport": {
+            "score": sum(score['detailed_metrics'].get('rapport_building', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
+            "strengths": [s['description'] for s in all_strengths if s.get('category') == 'rapport_building'],
+            "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'rapport_building'],
+            "rapport_building_moments": []
+        },
+        "discovery_qualification": {
+            "score": sum(score['detailed_metrics'].get('discovery', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
+            "strengths": [s['description'] for s in all_strengths if s.get('category') == 'discovery'],
+            "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'discovery'],
+            "information_gathered": [],
+            "qualification_questions": []
+        },
+        "closing_effectiveness": {
+            "score": sum(score['detailed_metrics'].get('closing_effectiveness', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
+            "strengths": [s['description'] for s in all_strengths if s.get('category') == 'closing'],
+            "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'closing'],
+            "closing_attempts": [],
+            "payment_discussion": ""
         }
-    except Exception as e:
-        return {
-            "error": f"Aggregation failed: {str(e)}",
-            "report_metadata": {
-                "reference_files_used": list(all_reference_files),
-                "analysis_timestamp": datetime.now().isoformat(),
-                "total_chunks_analyzed": len(chunk_analyses),
-                "max_tokens_used": allowed_max_tokens
-            }
+    }
+    
+    # Build final report using detailed chunk data
+    final_report = {
+        "report_metadata": {
+            "total_chunks_analyzed": len(chunk_analyses),
+            "reference_files_used": list(all_reference_files),
+            "analysis_timestamp": datetime.now().isoformat(),
+            "call_duration_estimated": f"{len(chunk_analyses) * 5} minutes"  # Rough estimate
+        },
+        "executive_summary": {
+            "overall_assessment": f"Call analyzed across {len(chunk_analyses)} chunks with detailed performance evaluation",
+            "overall_score": round(overall_score, 1),
+            "letter_grade": letter_grade,
+            "key_highlights": [s['description'] for s in all_strengths[:3]],  # Top 3 strengths
+            "critical_areas": [w['description'] for w in all_weaknesses[:3]]  # Top 3 weaknesses
+        },
+        "detailed_analysis": detailed_analysis,
+        "custom_business_rules": {
+            "violations_found": all_violations,
+            "total_violations": total_violations,
+            "total_score_penalty": total_score_penalty,
+            "recommendations": []
+        },
+        "coaching_recommendations": all_coaching_recommendations,
+        "reference_comparisons": {
+            "similarities_to_successful_calls": [s.get('reference_comparison', '') for s in all_strengths if s.get('reference_comparison')],
+            "differences_from_successful_calls": [w.get('reference_comparison', '') for w in all_weaknesses if w.get('reference_comparison')],
+            "best_practices_demonstrated": [s['description'] for s in all_strengths],
+            "missed_opportunities": [w['description'] for w in all_weaknesses]
+        },
+        "lead_interaction_summary": {
+            "total_questions_asked": len(all_lead_questions),
+            "total_objections_raised": len(all_objections),
+            "questions_asked": all_lead_questions,
+            "engagement_pattern": "high" if len(all_strengths) > len(all_weaknesses) else "medium" if len(all_strengths) == len(all_weaknesses) else "low",
+            "buying_signals": [],
+            "concerns_expressed": all_concerns
+        },
+        "performance_metrics": {
+            "rapport_building": detailed_analysis["engagement_rapport"]["score"],
+            "discovery": detailed_analysis["discovery_qualification"]["score"],
+            "objection_handling": detailed_analysis["objection_handling"]["score"],
+            "pitch_delivery": sum(score['detailed_metrics'].get('pitch_delivery', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
+            "closing_effectiveness": detailed_analysis["closing_effectiveness"]["score"],
+            "overall_performance": overall_score
         }
+    }
+    
+    return final_report
 
 def format_rules(business_rules: List[Dict]) -> str:
     """Format business rules as a compact numbered list, including violation_text and correct_text."""
