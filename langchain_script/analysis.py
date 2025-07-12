@@ -770,57 +770,44 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     all_concerns = []
     all_buying_signals = []
     
-    # Category mapping from chunk to detailed_analysis keys
-    category_map = {
-        'discovery': 'discovery_qualification',
-        'rapport_building': 'engagement_rapport',
-        'objection_handling': 'objection_handling',
-        'closing_effectiveness': 'closing_effectiveness',
-        'pitch_delivery': 'pitch_delivery',
-        'engagement_rapport': 'engagement_rapport',
-        'discovery_qualification': 'discovery_qualification',
-    }
-
-    categories = ['objection_handling', 'engagement_rapport', 'discovery_qualification', 'closing_effectiveness', 'pitch_delivery']
+    # Initialize detailed analysis structure
     detailed_analysis = {
-        cat: {'score': 0, 'strengths': [], 'weaknesses': []} for cat in categories
+        'objection_handling': {'score': 0, 'strengths': [], 'weaknesses': [], 'objections_encountered': [], 'handling_techniques_used': []},
+        'engagement_rapport': {'score': 0, 'strengths': [], 'weaknesses': [], 'rapport_building_moments': []},
+        'discovery_qualification': {'score': 0, 'strengths': [], 'weaknesses': [], 'information_gathered': [], 'qualification_questions': []},
+        'closing_effectiveness': {'score': 0, 'strengths': [], 'weaknesses': [], 'closing_attempts': [], 'payment_discussion': ''},
+        'pitch_delivery': {'score': 0, 'strengths': [], 'weaknesses': []}  # Add pitch_delivery category
     }
-    detailed_analysis['objection_handling'].update({'objections_encountered': [], 'handling_techniques_used': []})
-    detailed_analysis['engagement_rapport'].update({'rapport_building_moments': []})
-    detailed_analysis['discovery_qualification'].update({'information_gathered': [], 'qualification_questions': []})
-    detailed_analysis['closing_effectiveness'].update({'closing_attempts': [], 'payment_discussion': ''})
-
-    score_lists = {cat: [] for cat in categories}
-
+    
     total_score = 0
     total_chunks_with_scores = 0
-
+    
     for i, analysis in enumerate(chunk_analyses):
         if 'error' not in analysis:
             chunk_number = i + 1
-
-            # Assign strengths/weaknesses to correct category using mapping
+            
+            # Extract strengths with chunk context
             for strength in analysis.get('closer_performance', {}).get('strengths', []):
                 if isinstance(strength, dict) and 'description' in strength:
-                    raw_cat = strength.get('category')
-                    cat = category_map.get(raw_cat, raw_cat)
-                    if cat in detailed_analysis:
-                        detailed_analysis[cat]['strengths'].append(strength)
+                    strength_with_context = strength.copy()
+                    strength_with_context['chunk_number'] = chunk_number
+                    all_strengths.append(strength_with_context)
+            
+            # Extract weaknesses with chunk context
             for weakness in analysis.get('closer_performance', {}).get('weaknesses', []):
                 if isinstance(weakness, dict) and 'description' in weakness:
-                    raw_cat = weakness.get('category')
-                    cat = category_map.get(raw_cat, raw_cat)
-                    if cat in detailed_analysis:
-                        detailed_analysis[cat]['weaknesses'].append(weakness)
-
-            # Coaching recommendations (unchanged)
+                    weakness_with_context = weakness.copy()
+                    weakness_with_context['chunk_number'] = chunk_number
+                    all_weaknesses.append(weakness_with_context)
+            
+            # Extract coaching recommendations with chunk context
             for rec in analysis.get('coaching_recommendations', []):
                 if isinstance(rec, dict) and 'recommendation' in rec:
                     rec_with_context = rec.copy()
                     rec_with_context['chunk_number'] = chunk_number
                     all_coaching_recommendations.append(rec_with_context)
-
-            # Lead interaction (unchanged)
+            
+            # Extract lead interaction details
             lead_interaction = analysis.get('lead_interaction', {})
             for question in lead_interaction.get('questions_asked', []):
                 all_lead_questions.append(f"{question}")
@@ -830,50 +817,56 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
                 all_concerns.append(f"{concern}")
             for signal in lead_interaction.get('buying_signals', []):
                 all_buying_signals.append(f"{signal}")
-
-            # Detailed analysis by category (unchanged except for strengths/weaknesses above)
+            
+            # Extract detailed analysis by category
             detailed = analysis.get('detailed_analysis', {})
-            if 'objection_handling' in detailed:
-                for technique in detailed['objection_handling'].get('handling_techniques_used', []):
-                    detailed_analysis['objection_handling']['handling_techniques_used'].append(f"{technique}")
-                for objection in detailed['objection_handling'].get('objections_encountered', []):
-                    detailed_analysis['objection_handling']['objections_encountered'].append(f"{objection}")
-            if 'engagement_rapport' in detailed:
-                for moment in detailed['engagement_rapport'].get('rapport_building_moments', []):
-                    detailed_analysis['engagement_rapport']['rapport_building_moments'].append(f"{moment}")
-            if 'discovery_qualification' in detailed:
-                for info in detailed['discovery_qualification'].get('information_gathered', []):
-                    detailed_analysis['discovery_qualification']['information_gathered'].append(f"{info}")
-                for question in detailed['discovery_qualification'].get('qualification_questions', []):
-                    detailed_analysis['discovery_qualification']['qualification_questions'].append(f"{question}")
-            if 'closing_effectiveness' in detailed:
-                for attempt in detailed['closing_effectiveness'].get('closing_attempts', []):
-                    detailed_analysis['closing_effectiveness']['closing_attempts'].append(f"{attempt}")
-                if detailed['closing_effectiveness'].get('payment_discussion'):
-                    detailed_analysis['closing_effectiveness']['payment_discussion'] += f"{detailed['closing_effectiveness']['payment_discussion']} "
-
-            # Collect scores for averaging (only if present in detailed_metrics)
+            
+            # Objection handling
+            objection_handling = detailed.get('objection_handling', {})
+            for technique in objection_handling.get('handling_techniques_used', []):
+                detailed_analysis['objection_handling']['handling_techniques_used'].append(f"{technique}")
+            for objection in objection_handling.get('objections_encountered', []):
+                detailed_analysis['objection_handling']['objections_encountered'].append(f"{objection}")
+            
+            # Engagement & rapport
+            engagement_rapport = detailed.get('engagement_rapport', {})
+            for moment in engagement_rapport.get('rapport_building_moments', []):
+                detailed_analysis['engagement_rapport']['rapport_building_moments'].append(f"{moment}")
+            
+            # Discovery & qualification
+            discovery_qualification = detailed.get('discovery_qualification', {})
+            for info in discovery_qualification.get('information_gathered', []):
+                detailed_analysis['discovery_qualification']['information_gathered'].append(f"{info}")
+            for question in discovery_qualification.get('qualification_questions', []):
+                detailed_analysis['discovery_qualification']['qualification_questions'].append(f"{question}")
+            
+            # Closing effectiveness
+            closing_effectiveness = detailed.get('closing_effectiveness', {})
+            for attempt in closing_effectiveness.get('closing_attempts', []):
+                detailed_analysis['closing_effectiveness']['closing_attempts'].append(f"{attempt}")
+            if closing_effectiveness.get('payment_discussion'):
+                detailed_analysis['closing_effectiveness']['payment_discussion'] += f"{closing_effectiveness['payment_discussion']} "
+            
+            # Collect scores for averaging
             scoring = analysis.get('scoring', {})
             if 'overall_score' in scoring:
                 total_score += scoring['overall_score']
                 total_chunks_with_scores += 1
+            
+            # Collect detailed metrics
             detailed_metrics = scoring.get('detailed_metrics', {})
-            for raw_cat, metric in detailed_metrics.items():
-                cat = category_map.get(raw_cat, raw_cat)
-                if cat in detailed_analysis and metric and 'score' in metric:
-                    score_lists[cat].append(metric['score'])
-
-    # Calculate average scores for each category (only if present)
-    for cat in categories:
-        if score_lists[cat]:
-            detailed_analysis[cat]['score'] = round(sum(score_lists[cat]) / len(score_lists[cat]), 1)
-        else:
-            detailed_analysis[cat]['score'] = None
-
-    # Calculate overall_score as before
+            for category, metric in detailed_metrics.items():
+                if isinstance(metric, dict) and 'score' in metric:
+                    if category in detailed_analysis:
+                        detailed_analysis[category]['score'] += metric['score']
+    
+    # Calculate average scores
     overall_score = total_score / total_chunks_with_scores if total_chunks_with_scores > 0 else 0
-
-    # Restore letter_grade calculation
+    for category in detailed_analysis:
+        if total_chunks_with_scores > 0:
+            detailed_analysis[category]['score'] = round(detailed_analysis[category]['score'] / total_chunks_with_scores, 1)
+    
+    # Determine letter grade
     if overall_score >= 94:
         letter_grade = "A"
     elif overall_score >= 90:
@@ -898,11 +891,17 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         letter_grade = "D-"
     else:
         letter_grade = "E"
-
-    # Calculate overall_performance from available category scores (ignore None)
-    available_scores = [detailed_analysis[cat]['score'] for cat in categories if detailed_analysis[cat]['score'] is not None]
-    overall_performance = sum(available_scores) / len(available_scores) if available_scores else 0
-
+    
+    # Calculate overall performance from detailed analysis scores for consistency
+    detailed_scores = [
+        detailed_analysis["engagement_rapport"]["score"],
+        detailed_analysis["discovery_qualification"]["score"],
+        detailed_analysis["objection_handling"]["score"],
+        detailed_analysis["pitch_delivery"]["score"],
+        detailed_analysis["closing_effectiveness"]["score"]
+    ]
+    overall_performance = sum(detailed_scores) / len(detailed_scores)
+    
     # Build final report with exact structure expected by frontend
     final_report = {
         "report_metadata": {
@@ -935,11 +934,11 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "concerns_expressed": all_concerns
         },
         "performance_metrics": {
-            "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"] or 0)),
-            "discovery": int(round(detailed_analysis["discovery_qualification"]["score"] or 0)),
-            "objection_handling": int(round(detailed_analysis["objection_handling"]["score"] or 0)),
-            "pitch_delivery": int(round(detailed_analysis["pitch_delivery"]["score"] or 0)),
-            "closing_effectiveness": int(round(detailed_analysis["closing_effectiveness"]["score"] or 0)),
+            "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"])),
+            "discovery": int(round(detailed_analysis["discovery_qualification"]["score"])),
+            "objection_handling": int(round(detailed_analysis["objection_handling"]["score"])),
+            "pitch_delivery": int(round(detailed_analysis["pitch_delivery"]["score"])),
+            "closing_effectiveness": int(round(detailed_analysis["closing_effectiveness"]["score"])),
             "overall_performance": int(round(overall_performance))
         }
     }
