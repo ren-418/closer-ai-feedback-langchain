@@ -236,7 +236,8 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '    "questions_asked": ["specific question 1", "specific question 2"],\n'
         '    "objections_raised": ["specific objection 1", "specific objection 2"],\n'
         '    "engagement_level": "high/medium/low",\n'
-        '    "concerns_expressed": ["concern 1", "concern 2"]\n'
+        '    "concerns_expressed": ["concern 1", "concern 2"],\n'
+        '    "buying_signals": ["signal 1", "signal 2"]\n'
         '  },\n'
         '  "custom_business_rules": {\n'
         '    "violations_found": [\n'
@@ -286,6 +287,23 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '      "objection_handling": {"score": 9, "comment": "Specific feedback"},\n'
         '      "pitch_delivery": {"score": 8, "comment": "Specific feedback"},\n'
         '      "closing_effectiveness": {"score": 7, "comment": "Specific feedback"}\n'
+        '    }\n'
+        '  },\n'
+        '  "detailed_analysis": {\n'
+        '    "objection_handling": {\n'
+        '      "handling_techniques_used": ["specific technique 1", "specific technique 2"],\n'
+        '      "objections_encountered": ["specific objection 1", "specific objection 2"]\n'
+        '    },\n'
+        '    "engagement_rapport": {\n'
+        '      "rapport_building_moments": ["specific moment 1", "specific moment 2"]\n'
+        '    },\n'
+        '    "discovery_qualification": {\n'
+        '      "information_gathered": ["specific info 1", "specific info 2"],\n'
+        '      "qualification_questions": ["specific question 1", "specific question 2"]\n'
+        '    },\n'
+        '    "closing_effectiveness": {\n'
+        '      "closing_attempts": ["specific attempt 1", "specific attempt 2"],\n'
+        '      "payment_discussion": "Specific payment discussion details from transcript"\n'
         '    }\n'
         '  },\n'
         '  "key_insights": {\n'
@@ -448,7 +466,16 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     all_lead_questions = []
     all_objections = []
     all_concerns = []
+    all_buying_signals = []
     all_scores = []
+    
+    # Detailed analysis data
+    all_handling_techniques = []
+    all_rapport_moments = []
+    all_information_gathered = []
+    all_qualification_questions = []
+    all_closing_attempts = []
+    all_payment_discussions = []
     
     for i, analysis in enumerate(chunk_analyses):
         if 'error' not in analysis:
@@ -481,6 +508,43 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
                     all_objections.append(f"Chunk {chunk_num}: {objection}")
                 for concern in lead_int.get('concerns_expressed', []):
                     all_concerns.append(f"Chunk {chunk_num}: {concern}")
+                for signal in lead_int.get('buying_signals', []):
+                    all_buying_signals.append(f"Chunk {chunk_num}: {signal}")
+            
+            # Extract detailed analysis data
+            if 'detailed_analysis' in analysis:
+                detailed = analysis['detailed_analysis']
+                
+                # Objection handling
+                if 'objection_handling' in detailed:
+                    obj_handling = detailed['objection_handling']
+                    for technique in obj_handling.get('handling_techniques_used', []):
+                        all_handling_techniques.append(f"Chunk {chunk_num}: {technique}")
+                    for objection in obj_handling.get('objections_encountered', []):
+                        all_objections.append(f"Chunk {chunk_num}: {objection}")
+                
+                # Engagement rapport
+                if 'engagement_rapport' in detailed:
+                    engagement = detailed['engagement_rapport']
+                    for moment in engagement.get('rapport_building_moments', []):
+                        all_rapport_moments.append(f"Chunk {chunk_num}: {moment}")
+                
+                # Discovery qualification
+                if 'discovery_qualification' in detailed:
+                    discovery = detailed['discovery_qualification']
+                    for info in discovery.get('information_gathered', []):
+                        all_information_gathered.append(f"Chunk {chunk_num}: {info}")
+                    for question in discovery.get('qualification_questions', []):
+                        all_qualification_questions.append(f"Chunk {chunk_num}: {question}")
+                
+                # Closing effectiveness
+                if 'closing_effectiveness' in detailed:
+                    closing = detailed['closing_effectiveness']
+                    for attempt in closing.get('closing_attempts', []):
+                        all_closing_attempts.append(f"Chunk {chunk_num}: {attempt}")
+                    payment_disc = closing.get('payment_discussion', '')
+                    if payment_disc:
+                        all_payment_discussions.append(f"Chunk {chunk_num}: {payment_disc}")
             
             # Extract scores
             if 'scoring' in analysis:
@@ -531,27 +595,27 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "strengths": [s['description'] for s in all_strengths if s.get('category') == 'objection_handling'],
             "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'objection_handling'],
             "objections_encountered": all_objections,
-            "handling_techniques_used": []
+            "handling_techniques_used": all_handling_techniques
         },
         "engagement_rapport": {
             "score": sum(score['detailed_metrics'].get('rapport_building', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
             "strengths": [s['description'] for s in all_strengths if s.get('category') == 'rapport_building'],
             "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'rapport_building'],
-            "rapport_building_moments": []
+            "rapport_building_moments": all_rapport_moments
         },
         "discovery_qualification": {
             "score": sum(score['detailed_metrics'].get('discovery', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
             "strengths": [s['description'] for s in all_strengths if s.get('category') == 'discovery'],
             "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'discovery'],
-            "information_gathered": [],
-            "qualification_questions": []
+            "information_gathered": all_information_gathered,
+            "qualification_questions": all_qualification_questions
         },
         "closing_effectiveness": {
             "score": sum(score['detailed_metrics'].get('closing_effectiveness', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
             "strengths": [s['description'] for s in all_strengths if s.get('category') == 'closing'],
             "weaknesses": [w['description'] for w in all_weaknesses if w.get('category') == 'closing'],
-            "closing_attempts": [],
-            "payment_discussion": ""
+            "closing_attempts": all_closing_attempts,
+            "payment_discussion": "; ".join(all_payment_discussions) if all_payment_discussions else "No payment discussion found"
         }
     }
     
@@ -575,7 +639,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "violations_found": all_violations,
             "total_violations": total_violations,
             "total_score_penalty": total_score_penalty,
-            "recommendations": []
+            "recommendations": ["Review business rules compliance", "Improve adherence to company guidelines"]
         },
         "coaching_recommendations": all_coaching_recommendations,
         "reference_comparisons": {
@@ -589,7 +653,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "total_objections_raised": len(all_objections),
             "questions_asked": all_lead_questions,
             "engagement_pattern": "high" if len(all_strengths) > len(all_weaknesses) else "medium" if len(all_strengths) == len(all_weaknesses) else "low",
-            "buying_signals": [],
+            "buying_signals": all_buying_signals,
             "concerns_expressed": all_concerns
         },
         "performance_metrics": {
