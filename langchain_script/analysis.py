@@ -899,6 +899,10 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     else:
         letter_grade = "E"
 
+    # Calculate overall_performance from available category scores (ignore None)
+    available_scores = [detailed_analysis[cat]['score'] for cat in categories if detailed_analysis[cat]['score'] is not None]
+    overall_performance = sum(available_scores) / len(available_scores) if available_scores else 0
+
     # Build final report with exact structure expected by frontend
     final_report = {
         "report_metadata": {
@@ -931,11 +935,11 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "concerns_expressed": all_concerns
         },
         "performance_metrics": {
-            "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"])),
-            "discovery": int(round(detailed_analysis["discovery_qualification"]["score"])),
-            "objection_handling": int(round(detailed_analysis["objection_handling"]["score"])),
-            "pitch_delivery": int(round(detailed_analysis["pitch_delivery"]["score"])),
-            "closing_effectiveness": int(round(detailed_analysis["closing_effectiveness"]["score"])),
+            "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"] or 0)),
+            "discovery": int(round(detailed_analysis["discovery_qualification"]["score"] or 0)),
+            "objection_handling": int(round(detailed_analysis["objection_handling"]["score"] or 0)),
+            "pitch_delivery": int(round(detailed_analysis["pitch_delivery"]["score"] or 0)),
+            "closing_effectiveness": int(round(detailed_analysis["closing_effectiveness"]["score"] or 0)),
             "overall_performance": int(round(overall_performance))
         }
     }
