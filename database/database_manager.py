@@ -277,9 +277,9 @@ class DatabaseManager:
                 # Track category scores and patterns
                 category_scores = {
                     'objection_handling': [],
-                    'rapport_building': [],
-                    'discovery': [],
-                    'closing': [],
+                    'engagement_rapport': [],
+                    'discovery_qualification': [],
+                    'closing_effectiveness': [],
                     'pitch_delivery': []
                 }
                 
@@ -308,11 +308,11 @@ class DatabaseManager:
                             if 'objection' in rec.lower():
                                 focus_patterns['objection_handling'] += 1
                             elif 'rapport' in rec.lower() or 'engagement' in rec.lower():
-                                focus_patterns['rapport_building'] += 1
+                                focus_patterns['engagement_rapport'] += 1
                             elif 'discovery' in rec.lower() or 'qualification' in rec.lower():
-                                focus_patterns['discovery'] += 1
+                                focus_patterns['discovery_qualification'] += 1
                             elif 'closing' in rec.lower() or 'payment' in rec.lower():
-                                focus_patterns['closing'] += 1
+                                focus_patterns['closing_effectiveness'] += 1
                             else:
                                 focus_patterns['general'] += 1
                 
@@ -339,7 +339,7 @@ class DatabaseManager:
                         else:
                             return "Objection handling is generally strong across the team"
                     
-                    elif category == 'rapport_building':
+                    elif category == 'engagement_rapport':
                         if percentage > 60:
                             return "Team needs focus on building stronger rapport"
                         elif percentage > 30:
@@ -347,7 +347,7 @@ class DatabaseManager:
                         else:
                             return "Rapport building skills are solid across the team"
                     
-                    elif category == 'discovery':
+                    elif category == 'discovery_qualification':
                         if percentage > 60:
                             return "Team needs improvement in discovery and qualification"
                         elif percentage > 30:
@@ -355,7 +355,7 @@ class DatabaseManager:
                         else:
                             return "Discovery and qualification skills are strong"
                     
-                    elif category == 'closing':
+                    elif category == 'closing_effectiveness':
                         if percentage > 60:
                             return "Team needs focus on closing techniques"
                         elif percentage > 30:
