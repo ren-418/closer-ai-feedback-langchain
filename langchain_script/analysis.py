@@ -432,6 +432,85 @@ def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], contex
             }
         }
 
+def generate_overall_assessment(overall_score: float, letter_grade: str, strengths_count: int, weaknesses_count: int, total_chunks: int) -> str:
+    """
+    Generate a meaningful overall assessment based on performance metrics.
+    """
+    # Base assessment based on score
+    if overall_score >= 90:
+        performance_level = "excellent"
+        assessment = f"Excellent performance with a {letter_grade} grade ({overall_score:.1f}/100). "
+    elif overall_score >= 80:
+        performance_level = "good"
+        assessment = f"Good performance with a {letter_grade} grade ({overall_score:.1f}/100). "
+    elif overall_score >= 70:
+        performance_level = "fair"
+        assessment = f"Fair performance with a {letter_grade} grade ({overall_score:.1f}/100). "
+    elif overall_score >= 60:
+        performance_level = "poor"
+        assessment = f"Poor performance with a {letter_grade} grade ({overall_score:.1f}/100). "
+    else:
+        performance_level = "very_poor"
+        assessment = f"Very poor performance with a {letter_grade} grade ({overall_score:.1f}/100). "
+    
+    # Add balance assessment with more context
+    if strengths_count > weaknesses_count:
+        if strengths_count >= 5:
+            balance = f"The call demonstrated {strengths_count} strong techniques with only {weaknesses_count} areas for improvement. "
+        else:
+            balance = f"The call showed more strengths ({strengths_count}) than weaknesses ({weaknesses_count}). "
+    elif weaknesses_count > strengths_count:
+        if weaknesses_count >= 5:
+            balance = f"The call had {weaknesses_count} areas needing attention with only {strengths_count} strengths identified. "
+        else:
+            balance = f"The call had more areas for improvement ({weaknesses_count}) than strengths ({strengths_count}). "
+    else:
+        balance = f"The call showed a balanced mix with {strengths_count} strengths and {weaknesses_count} areas for improvement. "
+    
+    # Add call length context with more detail
+    if total_chunks <= 3:
+        length_context = f"This was a relatively short call ({total_chunks} segments analyzed). "
+    elif total_chunks <= 6:
+        length_context = f"This was a moderate-length call ({total_chunks} segments analyzed). "
+    else:
+        length_context = f"This was a lengthy call with extensive interaction ({total_chunks} segments analyzed). "
+    
+    # Add performance context based on score ranges
+    if overall_score >= 85:
+        score_context = "This performance level indicates strong sales skills and effective techniques. "
+    elif overall_score >= 75:
+        score_context = "This performance level shows solid fundamentals with room for enhancement. "
+    elif overall_score >= 65:
+        score_context = "This performance level suggests basic skills with significant improvement opportunities. "
+    else:
+        score_context = "This performance level indicates fundamental areas need attention. "
+    
+    # Add specific insights based on performance and patterns
+    if performance_level in ["excellent", "good"]:
+        if strengths_count >= 3:
+            insight = "Multiple strong techniques were demonstrated throughout the call, indicating well-rounded sales skills."
+        else:
+            insight = "Key strengths were identified despite some areas for improvement, showing potential for growth."
+    elif performance_level in ["fair", "poor"]:
+        if weaknesses_count >= 3:
+            insight = "Several areas need attention to improve future performance and conversion rates."
+        else:
+            insight = "Targeted improvements in specific areas could significantly enhance overall effectiveness."
+    else:
+        insight = "Significant improvements are needed across multiple areas to reach acceptable performance levels."
+    
+    # Add coaching priority
+    if weaknesses_count >= 5:
+        coaching_priority = "High priority coaching recommended to address multiple areas."
+    elif weaknesses_count >= 3:
+        coaching_priority = "Moderate coaching focus needed on key improvement areas."
+    elif weaknesses_count >= 1:
+        coaching_priority = "Light coaching recommended to refine specific techniques."
+    else:
+        coaching_priority = "Minimal coaching needed - focus on maintaining current strengths."
+    
+    return assessment + balance + length_context + score_context + insight + " " + coaching_priority
+
 def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Dict] = None) -> Dict:
     """
     Aggregate all chunk-level analyses into a comprehensive evaluation report.
@@ -628,7 +707,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "call_duration_estimated": f"{len(chunk_analyses) * 5} minutes"  # Rough estimate
         },
         "executive_summary": {
-            "overall_assessment": f"Call analyzed across {len(chunk_analyses)} chunks with detailed performance evaluation",
+            "overall_assessment": generate_overall_assessment(overall_score, letter_grade, len(all_strengths), len(all_weaknesses), len(chunk_analyses)),
             "overall_score": round(overall_score, 1),
             "letter_grade": letter_grade,
             "key_highlights": [s['description'] for s in all_strengths[:3]],  # Top 3 strengths
