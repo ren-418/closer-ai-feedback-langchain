@@ -737,8 +737,7 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
 def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Dict] = None) -> Dict:
     """
     Aggregate all chunk-level analyses into a comprehensive evaluation report.
-    Returns a professional summary with reference file tracking and token safety.
-    Dynamically sets max_tokens to avoid context window errors, with a safety buffer.
+    Uses direct data compilation to preserve all specific details from chunks.
     """
     # Collect all reference files used across chunks
     all_reference_files = set()
@@ -762,7 +761,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             total_violations += analysis['custom_business_rules'].get('total_violations', 0)
             total_score_penalty += analysis['custom_business_rules'].get('total_score_penalty', 0)
     
-    # Extract ALL specific details from chunks to preserve specificity
+    # Extract ALL specific details from chunks
     all_strengths = []
     all_weaknesses = []
     all_coaching_recommendations = []
@@ -770,11 +769,14 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     all_objections = []
     all_concerns = []
     all_buying_signals = []
+    
+    # Initialize detailed analysis structure
     detailed_analysis = {
         'objection_handling': {'score': 0, 'strengths': [], 'weaknesses': [], 'objections_encountered': [], 'handling_techniques_used': []},
         'engagement_rapport': {'score': 0, 'strengths': [], 'weaknesses': [], 'rapport_building_moments': []},
         'discovery_qualification': {'score': 0, 'strengths': [], 'weaknesses': [], 'information_gathered': [], 'qualification_questions': []},
-        'closing_effectiveness': {'score': 0, 'strengths': [], 'weaknesses': [], 'closing_attempts': [], 'payment_discussion': ''}
+        'closing_effectiveness': {'score': 0, 'strengths': [], 'weaknesses': [], 'closing_attempts': [], 'payment_discussion': ''},
+        'pitch_delivery': {'score': 0, 'strengths': [], 'weaknesses': []}  # Add pitch_delivery category
     }
     
     total_score = 0
@@ -808,13 +810,13 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             # Extract lead interaction details
             lead_interaction = analysis.get('lead_interaction', {})
             for question in lead_interaction.get('questions_asked', []):
-                all_lead_questions.append(f"Chunk {chunk_number}: {question}")
+                all_lead_questions.append(f"{question}")
             for objection in lead_interaction.get('objections_raised', []):
-                all_objections.append(f"Chunk {chunk_number}: {objection}")
+                all_objections.append(f"{objection}")
             for concern in lead_interaction.get('concerns_expressed', []):
-                all_concerns.append(f"Chunk {chunk_number}: {concern}")
+                all_concerns.append(f"{concern}")
             for signal in lead_interaction.get('buying_signals', []):
-                all_buying_signals.append(f"Chunk {chunk_number}: {signal}")
+                all_buying_signals.append(f"{signal}")
             
             # Extract detailed analysis by category
             detailed = analysis.get('detailed_analysis', {})
@@ -822,28 +824,28 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             # Objection handling
             objection_handling = detailed.get('objection_handling', {})
             for technique in objection_handling.get('handling_techniques_used', []):
-                detailed_analysis['objection_handling']['handling_techniques_used'].append(f"Chunk {chunk_number}: {technique}")
+                detailed_analysis['objection_handling']['handling_techniques_used'].append(f"{technique}")
             for objection in objection_handling.get('objections_encountered', []):
-                detailed_analysis['objection_handling']['objections_encountered'].append(f"Chunk {chunk_number}: {objection}")
+                detailed_analysis['objection_handling']['objections_encountered'].append(f"{objection}")
             
             # Engagement & rapport
             engagement_rapport = detailed.get('engagement_rapport', {})
             for moment in engagement_rapport.get('rapport_building_moments', []):
-                detailed_analysis['engagement_rapport']['rapport_building_moments'].append(f"Chunk {chunk_number}: {moment}")
+                detailed_analysis['engagement_rapport']['rapport_building_moments'].append(f"{moment}")
             
             # Discovery & qualification
             discovery_qualification = detailed.get('discovery_qualification', {})
             for info in discovery_qualification.get('information_gathered', []):
-                detailed_analysis['discovery_qualification']['information_gathered'].append(f"Chunk {chunk_number}: {info}")
+                detailed_analysis['discovery_qualification']['information_gathered'].append(f"{info}")
             for question in discovery_qualification.get('qualification_questions', []):
-                detailed_analysis['discovery_qualification']['qualification_questions'].append(f"Chunk {chunk_number}: {question}")
+                detailed_analysis['discovery_qualification']['qualification_questions'].append(f"{question}")
             
             # Closing effectiveness
             closing_effectiveness = detailed.get('closing_effectiveness', {})
             for attempt in closing_effectiveness.get('closing_attempts', []):
-                detailed_analysis['closing_effectiveness']['closing_attempts'].append(f"Chunk {chunk_number}: {attempt}")
+                detailed_analysis['closing_effectiveness']['closing_attempts'].append(f"{attempt}")
             if closing_effectiveness.get('payment_discussion'):
-                detailed_analysis['closing_effectiveness']['payment_discussion'] += f"Chunk {chunk_number}: {closing_effectiveness['payment_discussion']} "
+                detailed_analysis['closing_effectiveness']['payment_discussion'] += f"{closing_effectiveness['payment_discussion']} "
             
             # Collect scores for averaging
             scoring = analysis.get('scoring', {})
@@ -862,7 +864,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     overall_score = total_score / total_chunks_with_scores if total_chunks_with_scores > 0 else 0
     for category in detailed_analysis:
         if total_chunks_with_scores > 0:
-            detailed_analysis[category]['score'] = detailed_analysis[category]['score'] / total_chunks_with_scores
+            detailed_analysis[category]['score'] = round(detailed_analysis[category]['score'] / total_chunks_with_scores, 1)
     
     # Determine letter grade
     if overall_score >= 94:
@@ -890,66 +892,68 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     else:
         letter_grade = "E"
     
-    # Prepare chunk summaries for aggregation (keeping this for backward compatibility)
-    chunk_summaries = []
-    for i, analysis in enumerate(chunk_analyses):
-        if 'error' not in analysis:
-            summary = {
-                'chunk_number': i + 1,
-                'overall_score': analysis.get('scoring', {}).get('overall_score', 0),
-                'letter_grade': analysis.get('scoring', {}).get('letter_grade', 'C'),
-                'key_strengths': [s.get('description', '') for s in analysis.get('closer_performance', {}).get('strengths', [])],
-                'key_weaknesses': [w.get('description', '') for w in analysis.get('closer_performance', {}).get('weaknesses', [])],
-                'objections': analysis.get('lead_interaction', {}).get('objections_raised', []),
-                'questions': analysis.get('lead_interaction', {}).get('questions_asked', [])
-            }
-            chunk_summaries.append(summary)
+    # Build final report with exact structure expected by frontend
+    final_report = {
+        "report_metadata": {
+            "total_chunks_analyzed": len(chunk_analyses),
+            "reference_files_used": list(all_reference_files),
+            "analysis_timestamp": datetime.now().isoformat(),
+            "call_duration_estimated": f"{len(chunk_analyses) * 5} minutes"
+        },
+        "executive_summary": {
+            "overall_assessment": generate_overall_assessment(overall_score, letter_grade, len(all_strengths), len(all_weaknesses), len(chunk_analyses)),
+            "overall_score": round(overall_score, 1),
+            "letter_grade": letter_grade,
+            "key_highlights": [s.get('description', '') for s in all_strengths[:3] if isinstance(s, dict)],
+            "critical_areas": [w.get('description', '') for w in all_weaknesses[:3] if isinstance(w, dict)]
+        },
+        "detailed_analysis": detailed_analysis,
+        "coaching_recommendations": all_coaching_recommendations,
+        "reference_comparisons": {
+            "similarities_to_successful_calls": [s.get('reference_comparison', '') for s in all_strengths if s.get('reference_comparison')],
+            "differences_from_successful_calls": [w.get('reference_comparison', '') for w in all_weaknesses if w.get('reference_comparison')],
+            "best_practices_demonstrated": [s['description'] for s in all_strengths],
+            "missed_opportunities": [w['description'] for w in all_weaknesses]
+        },
+        "lead_interaction_summary": {
+            "total_questions_asked": len(all_lead_questions),
+            "total_objections_raised": len(all_objections),
+            "questions_asked": all_lead_questions,
+            "engagement_pattern": "high" if len(all_strengths) > len(all_weaknesses) else "medium" if len(all_strengths) == len(all_weaknesses) else "low",
+            "buying_signals": all_buying_signals,
+            "concerns_expressed": all_concerns
+        },
+        # Calculate overall performance from detailed analysis scores for consistency
+        detailed_scores = [
+            detailed_analysis["engagement_rapport"]["score"],
+            detailed_analysis["discovery_qualification"]["score"],
+            detailed_analysis["objection_handling"]["score"],
+            detailed_analysis["pitch_delivery"]["score"],
+            detailed_analysis["closing_effectiveness"]["score"]
+        ]
+        overall_performance = sum(detailed_scores) / len(detailed_scores)
+        
+        "performance_metrics": {
+            "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"])),
+            "discovery": int(round(detailed_analysis["discovery_qualification"]["score"])),
+            "objection_handling": int(round(detailed_analysis["objection_handling"]["score"])),
+            "pitch_delivery": int(round(detailed_analysis["pitch_delivery"]["score"])),
+            "closing_effectiveness": int(round(detailed_analysis["closing_effectiveness"]["score"])),
+            "overall_performance": int(round(overall_performance))
+        }
+    }
     
-    # Create business rules section for final report
+    # Add business rules violations if any
     if all_violations:
-        rules_section = (
-            f"BUSINESS RULES VIOLATIONS FOUND: {total_violations} violations across all chunks with total penalty of {total_score_penalty} points.\n\n"
-            "The following violations were detected in the actual transcript:\n"
-        )
-        for i, violation in enumerate(all_violations, 1):
-            rules_section += f"{i}. Chunk {violation.get('chunk_number', 'Unknown')}: {violation.get('violation_text', '')} → {violation.get('correct_text', '')} ({violation.get('explanation', '')})\n"
-    else:
-        rules_section = (
-            "NO BUSINESS RULES VIOLATIONS FOUND in any chunk.\n\n"
-        )
-
-    # Use the existing generate_ai_final_analysis function to create the final report
-    # This function is designed to preserve all specific chunk details
-    final_report = generate_ai_final_analysis(
-        overall_score=overall_score,
-        letter_grade=letter_grade,
-        all_strengths=all_strengths,
-        all_weaknesses=all_weaknesses,
-        all_coaching_recommendations=all_coaching_recommendations,
-        all_violations=all_violations,
-        total_chunks=len(chunk_analyses),
-        detailed_analysis=detailed_analysis,
-        all_lead_questions=all_lead_questions,
-        all_objections=all_objections,
-        all_concerns=all_concerns,
-        all_buying_signals=all_buying_signals,
-        all_reference_files=list(all_reference_files)
-    )
-    
-    # Ensure report_metadata exists and add reference files
-    if 'report_metadata' not in final_report:
-        final_report['report_metadata'] = {}
-    final_report['report_metadata']['reference_files_used'] = list(all_reference_files)
-    final_report['report_metadata']['analysis_timestamp'] = datetime.now().isoformat()
-    final_report['report_metadata']['total_chunks_analyzed'] = len(chunk_analyses)
-    
-    # Add collected violations to final report
-    if all_violations:
-        if 'custom_business_rules' not in final_report:
-            final_report['custom_business_rules'] = {}
-        final_report['custom_business_rules']['violations_found'] = all_violations
-        final_report['custom_business_rules']['total_violations'] = total_violations
-        final_report['custom_business_rules']['total_score_penalty'] = total_score_penalty
+        final_report["custom_business_rules"] = {
+            "violations_found": all_violations,
+            "total_violations": total_violations,
+            "total_score_penalty": total_score_penalty,
+            "recommendations": [
+                "Review business rule compliance",
+                "Ensure proper terminology usage"
+            ]
+        }
     
     return final_report
 
