@@ -261,42 +261,133 @@ class DatabaseManager:
             }
 
             def aggregate_insights(filtered_calls):
-                strengths, weaknesses, focus_areas = [], [], []
                 if not filtered_calls:
                     return {
                         'common_strengths': [],
                         'common_weaknesses': [],
-                        'team_focus_areas': []
+                        'team_focus_areas': [],
+                        'category_trends': {}
                     }
+                
                 # Fetch all final analyses for these calls
                 call_ids = [call['id'] for call in filtered_calls if 'id' in call]
                 final_analyses_result = self.client.table('final_analyses').select('*').in_('call_id', call_ids).execute()
                 final_analysis_map = {fa['call_id']: fa['analysis_data'] for fa in final_analyses_result.data} if final_analyses_result.data else {}
+                
+                # Track category scores and patterns
+                category_scores = {
+                    'objection_handling': [],
+                    'rapport_building': [],
+                    'discovery': [],
+                    'closing': [],
+                    'pitch_delivery': []
+                }
+                
+                # Track high-level patterns across calls
+                strength_patterns = Counter()
+                weakness_patterns = Counter()
+                focus_patterns = Counter()
+                
                 for call in filtered_calls:
                     final = final_analysis_map.get(call['id'], {})
                     detailed = final.get('detailed_analysis', {})
-                    for cat in detailed.values():
-                        strengths += cat.get('strengths', [])
-                        weaknesses += cat.get('weaknesses', [])
-                    for rec in final.get('coaching_recommendations', []):
+                    
+                    # Collect scores by category
+                    for category, data in detailed.items():
+                        if isinstance(data, dict) and 'score' in data:
+                            category_scores[category].append(data['score'])
+                    
+                    # Extract coaching recommendations for high-level patterns
+                    coaching_recs = final.get('coaching_recommendations', [])
+                    for rec in coaching_recs:
                         if isinstance(rec, dict):
-                            focus_areas.append(rec.get('recommendation', ''))
+                            area = rec.get('area', 'general')
+                            focus_patterns[area] += 1
                         elif isinstance(rec, str):
-                            focus_areas.append(rec)
-                    exec_sum = final.get('executive_summary', {})
-                    focus_areas += exec_sum.get('critical_areas', [])
-                def top_phrases(lst, n=3):
-                    flat = []
-                    for item in lst:
-                        if isinstance(item, dict):
-                            flat.append(item.get('description', '') or item.get('recommendation', ''))
-                        elif isinstance(item, str):
-                            flat.append(item)
-                    return [phrase for phrase, _ in Counter(flat).most_common(n) if phrase]
+                            # Extract area from string
+                            if 'objection' in rec.lower():
+                                focus_patterns['objection_handling'] += 1
+                            elif 'rapport' in rec.lower() or 'engagement' in rec.lower():
+                                focus_patterns['rapport_building'] += 1
+                            elif 'discovery' in rec.lower() or 'qualification' in rec.lower():
+                                focus_patterns['discovery'] += 1
+                            elif 'closing' in rec.lower() or 'payment' in rec.lower():
+                                focus_patterns['closing'] += 1
+                            else:
+                                focus_patterns['general'] += 1
+                
+                # Calculate category trends
+                category_trends = {}
+                for category, scores in category_scores.items():
+                    if scores:
+                        avg_score = sum(scores) / len(scores)
+                        category_trends[category] = {
+                            'average_score': round(avg_score, 1),
+                            'call_count': len(scores),
+                            'trend': 'improving' if avg_score > 7.5 else 'needs_attention' if avg_score < 6.5 else 'stable'
+                        }
+                
+                # Generate high-level insights based on patterns
+                def generate_high_level_insights(category, pattern_count, total_calls):
+                    percentage = (pattern_count / total_calls) * 100 if total_calls > 0 else 0
+                    
+                    if category == 'objection_handling':
+                        if percentage > 60:
+                            return "Team needs improvement in objection handling techniques"
+                        elif percentage > 30:
+                            return "Some team members struggle with objection handling"
+                        else:
+                            return "Objection handling is generally strong across the team"
+                    
+                    elif category == 'rapport_building':
+                        if percentage > 60:
+                            return "Team needs focus on building stronger rapport"
+                        elif percentage > 30:
+                            return "Some team members need rapport building practice"
+                        else:
+                            return "Rapport building skills are solid across the team"
+                    
+                    elif category == 'discovery':
+                        if percentage > 60:
+                            return "Team needs improvement in discovery and qualification"
+                        elif percentage > 30:
+                            return "Some team members need better discovery techniques"
+                        else:
+                            return "Discovery and qualification skills are strong"
+                    
+                    elif category == 'closing':
+                        if percentage > 60:
+                            return "Team needs focus on closing techniques"
+                        elif percentage > 30:
+                            return "Some team members need closing practice"
+                        else:
+                            return "Closing effectiveness is generally good"
+                    
+                    else:
+                        return f"General improvement needed in {category.replace('_', ' ')}"
+                
+                # Generate insights based on focus patterns
+                total_calls = len(filtered_calls)
+                focus_insights = []
+                for area, count in focus_patterns.most_common(3):
+                    insight = generate_high_level_insights(area, count, total_calls)
+                    focus_insights.append(insight)
+                
+                # Generate strengths and weaknesses based on category trends
+                strengths = []
+                weaknesses = []
+                
+                for category, trend in category_trends.items():
+                    if trend['average_score'] >= 7.5:
+                        strengths.append(f"Strong performance in {category.replace('_', ' ')}")
+                    elif trend['average_score'] <= 6.0:
+                        weaknesses.append(f"Needs improvement in {category.replace('_', ' ')}")
+                
                 return {
-                    'common_strengths': top_phrases(strengths),
-                    'common_weaknesses': top_phrases(weaknesses),
-                    'team_focus_areas': top_phrases(focus_areas)
+                    'common_strengths': strengths[:3],
+                    'common_weaknesses': weaknesses[:3],
+                    'team_focus_areas': focus_insights,
+                    'category_trends': category_trends
                 }
 
             # --- Calculate time-based metrics ---
