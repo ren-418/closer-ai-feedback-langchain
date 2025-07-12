@@ -11,8 +11,8 @@ pinecone_manager = PineconeManager()
 
 MODEL_NAME = "text-embedding-3-large"
 
-MAX_CHUNK_TOKENS = 3000
-CHUNK_OVERLAP_TOKENS = 300
+MAX_CHUNK_TOKENS = 1500
+CHUNK_OVERLAP_TOKENS = 200
 
 # Use OpenAI's tiktoken for accurate token counting
 encoding = tiktoken.encoding_for_model("gpt-4")

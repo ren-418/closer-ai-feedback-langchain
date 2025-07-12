@@ -12,13 +12,13 @@ openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 # Initialize Pinecone manager
 pinecone_manager = PineconeManager()
 
-MAX_CHUNK_TOKENS = 3000
-CHUNK_OVERLAP_TOKENS = 300
+MAX_CHUNK_TOKENS = 1500
+CHUNK_OVERLAP_TOKENS = 200
 CONTEXT_WINDOW_TOKENS = 300  # Reduced for safety
 MAX_REF_CHUNKS = 3
 MAX_REF_TOKENS = 600
 MAX_TOTAL_PROMPT_TOKENS = 8000
-MAX_RESPONSE_TOKENS = 2500
+MAX_RESPONSE_TOKENS = 4000  # Increased from 2500 to 4000 for longer responses
   # Increased for longer aggregation responses
 
 # Use OpenAI's tiktoken for accurate token counting
