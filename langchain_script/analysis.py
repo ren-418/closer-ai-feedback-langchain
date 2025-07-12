@@ -511,10 +511,233 @@ def generate_overall_assessment(overall_score: float, letter_grade: str, strengt
     
     return assessment + balance + length_context + score_context + insight + " " + coaching_priority
 
+def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_strengths: List[Dict], 
+                              all_weaknesses: List[Dict], all_coaching_recommendations: List[Dict], 
+                              all_violations: List[Dict], total_chunks: int, detailed_analysis: Dict,
+                              all_lead_questions: List[str], all_objections: List[str], 
+                              all_concerns: List[str], all_buying_signals: List[str],
+                              all_reference_files: List[str]) -> Dict:
+    """
+    Use AI to generate the final_analysis in the exact format expected by the frontend.
+    """
+    # Prepare all detailed data for AI
+    strengths_details = []
+    for strength in all_strengths:
+        if isinstance(strength, dict) and 'description' in strength:
+            chunk_info = f"(Chunk {strength.get('chunk_number', 'N/A')})"
+            strengths_details.append(f"{strength['description']} {chunk_info}")
+    
+    weaknesses_details = []
+    for weakness in all_weaknesses:
+        if isinstance(weakness, dict) and 'description' in weakness:
+            chunk_info = f"(Chunk {weakness.get('chunk_number', 'N/A')})"
+            weaknesses_details.append(f"{weakness['description']} {chunk_info}")
+    
+    coaching_details = []
+    for rec in all_coaching_recommendations:
+        if isinstance(rec, dict) and 'recommendation' in rec:
+            chunk_info = f"(Chunk {rec.get('chunk_number', 'N/A')})"
+            coaching_details.append(f"{rec['recommendation']} {chunk_info}")
+    
+    # Calculate category scores
+    category_scores = {}
+    for category, data in detailed_analysis.items():
+        if isinstance(data, dict) and 'score' in data:
+            category_scores[category] = data['score']
+    
+    # Build AI prompt for exact frontend format
+    prompt = f"""
+You are a senior sales training consultant creating a final analysis report in the exact format expected by the frontend.
+
+CALL PERFORMANCE DATA:
+- Overall Score: {overall_score:.1f}/100 ({letter_grade} grade)
+- Total Chunks Analyzed: {total_chunks}
+- Strengths Identified: {len(all_strengths)}
+- Areas for Improvement: {len(all_weaknesses)}
+- Business Rule Violations: {len(all_violations)}
+
+CATEGORY PERFORMANCE:
+{chr(10).join([f"- {category.replace('_', ' ').title()}: {score:.1f}/10" for category, score in category_scores.items()])}
+
+ALL STRENGTHS (with chunk context):
+{chr(10).join([f"- {strength}" for strength in strengths_details])}
+
+ALL AREAS FOR IMPROVEMENT (with chunk context):
+{chr(10).join([f"- {weakness}" for weakness in weaknesses_details])}
+
+ALL COACHING RECOMMENDATIONS (with chunk context):
+{chr(10).join([f"- {rec}" for rec in coaching_details])}
+
+LEAD INTERACTION DETAILS:
+- Questions Asked: {len(all_lead_questions)}
+- Objections Raised: {len(all_objections)}
+- Concerns Expressed: {len(all_concerns)}
+- Buying Signals: {len(all_buying_signals)}
+
+REFERENCE FILES USED:
+{chr(10).join([f"- {ref}" for ref in all_reference_files])}
+
+Create a comprehensive final analysis in the EXACT format expected by the frontend:
+
+1. EXECUTIVE SUMMARY: Professional assessment with key highlights and critical areas
+2. DETAILED ANALYSIS: Organized by category (objection_handling, engagement_rapport, discovery_qualification, closing_effectiveness) with scores, strengths, weaknesses, and specific details
+3. COACHING RECOMMENDATIONS: Structured recommendations with priority, category, recommendation, reference_example, and expected_impact
+4. REFERENCE COMPARISONS: Similarities, differences, best practices, and missed opportunities
+5. LEAD INTERACTION SUMMARY: Total counts, questions, engagement pattern, buying signals, and concerns
+6. PERFORMANCE METRICS: All category scores and overall performance
+
+Requirements:
+- Use professional business language
+- Must Keep ALL specific details from chunks. Very Very Important!
+- Maintain specific chunk references for traceability
+- Be actionable and specific
+- Follow the EXACT structure shown in the example
+
+Respond in this exact JSON format:
+{{
+    "report_metadata": {{
+        "total_chunks_analyzed": {total_chunks},
+        "reference_files_used": {all_reference_files},
+        "analysis_timestamp": "2025-01-01T12:00:00Z",
+        "call_duration_estimated": "{total_chunks * 5} minutes",
+        "max_tokens_used": 2500
+    }},
+    "executive_summary": {{
+        "overall_assessment": "Professional assessment of call performance",
+        "overall_score": {overall_score:.1f},
+        "letter_grade": "{letter_grade}",
+        "key_highlights": ["highlight 1", "highlight 2", "highlight 3"],
+        "critical_areas": ["area 1", "area 2", "area 3"]
+    }},
+    "detailed_analysis": {{
+        "objection_handling": {{
+            "score": {category_scores.get('objection_handling', 0):.1f},
+            "strengths": ["strength 1", "strength 2"],
+            "weaknesses": ["weakness 1", "weakness 2"],
+            "objections_encountered": ["objection 1", "objection 2"],
+            "handling_techniques_used": ["technique 1", "technique 2"]
+        }},
+        "engagement_rapport": {{
+            "score": {category_scores.get('engagement_rapport', 0):.1f},
+            "strengths": ["strength 1", "strength 2"],
+            "weaknesses": ["weakness 1", "weakness 2"],
+            "rapport_building_moments": ["moment 1", "moment 2"]
+        }},
+        "discovery_qualification": {{
+            "score": {category_scores.get('discovery_qualification', 0):.1f},
+            "strengths": ["strength 1", "strength 2"],
+            "weaknesses": ["weakness 1", "weakness 2"],
+            "information_gathered": ["info 1", "info 2"],
+            "qualification_questions": ["question 1", "question 2"]
+        }},
+        "closing_effectiveness": {{
+            "score": {category_scores.get('closing_effectiveness', 0):.1f},
+            "strengths": ["strength 1", "strength 2"],
+            "weaknesses": ["weakness 1", "weakness 2"],
+            "closing_attempts": ["attempt 1", "attempt 2"],
+            "payment_discussion": "Payment discussion details"
+        }}
+    }},
+    "coaching_recommendations": [
+        {{
+            "priority": "high/medium/low",
+            "category": "objection_handling/engagement_rapport/discovery_qualification/closing_effectiveness",
+            "recommendation": "Specific recommendation with details",
+            "reference_example": "Reference to successful call example",
+            "expected_impact": "Expected impact of this recommendation"
+        }}
+    ],
+    "reference_comparisons": {{
+        "similarities_to_successful_calls": ["similarity 1", "similarity 2"],
+        "differences_from_successful_calls": ["difference 1", "difference 2"],
+        "best_practices_demonstrated": ["practice 1", "practice 2"],
+        "missed_opportunities": ["opportunity 1", "opportunity 2"]
+    }},
+    "lead_interaction_summary": {{
+        "total_questions_asked": {len(all_lead_questions)},
+        "total_objections_raised": {len(all_objections)},
+        "questions_asked": ["question 1", "question 2"],
+        "engagement_pattern": "high/medium/low",
+        "buying_signals": ["signal 1", "signal 2"],
+        "concerns_expressed": ["concern 1", "concern 2"]
+    }},
+    "performance_metrics": {{
+        "rapport_building": {category_scores.get('engagement_rapport', 0):.1f},
+        "discovery": {category_scores.get('discovery_qualification', 0):.1f},
+        "objection_handling": {category_scores.get('objection_handling', 0):.1f},
+        "pitch_delivery": {category_scores.get('pitch_delivery', 0):.1f},
+        "closing_effectiveness": {category_scores.get('closing_effectiveness', 0):.1f},
+        "overall_performance": {overall_score:.1f}
+    }}
+}}
+"""
+    
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=4000  # Increased for comprehensive report
+        )
+        
+        ai_final_analysis = json.loads(response.choices[0].message.content)
+        
+        # Ensure all required fields are present
+        required_sections = ['report_metadata', 'executive_summary', 'detailed_analysis', 'coaching_recommendations', 'reference_comparisons', 'lead_interaction_summary', 'performance_metrics']
+        for section in required_sections:
+            if section not in ai_final_analysis:
+                ai_final_analysis[section] = {}
+        
+        return ai_final_analysis
+        
+    except Exception as e:
+        print(f"[Error] AI final analysis generation failed: {e}")
+        # Fallback to rule-based summary with correct structure
+        return {
+            "report_metadata": {
+                "total_chunks_analyzed": total_chunks,
+                "reference_files_used": all_reference_files,
+                "analysis_timestamp": datetime.now().isoformat(),
+                "call_duration_estimated": f"{total_chunks * 5} minutes",
+                "max_tokens_used": 2500
+            },
+            "executive_summary": {
+                "overall_assessment": generate_overall_assessment(overall_score, letter_grade, len(all_strengths), len(all_weaknesses), total_chunks),
+                "overall_score": round(overall_score, 1),
+                "letter_grade": letter_grade,
+                "key_highlights": [s.get('description', '') for s in all_strengths[:3] if isinstance(s, dict)],
+                "critical_areas": [w.get('description', '') for w in all_weaknesses[:3] if isinstance(w, dict)]
+            },
+            "detailed_analysis": detailed_analysis,
+            "coaching_recommendations": all_coaching_recommendations,
+            "reference_comparisons": {
+                "similarities_to_successful_calls": [s.get('reference_comparison', '') for s in all_strengths if s.get('reference_comparison')],
+                "differences_from_successful_calls": [w.get('reference_comparison', '') for w in all_weaknesses if w.get('reference_comparison')],
+                "best_practices_demonstrated": [s['description'] for s in all_strengths],
+                "missed_opportunities": [w['description'] for w in all_weaknesses]
+            },
+            "lead_interaction_summary": {
+                "total_questions_asked": len(all_lead_questions),
+                "total_objections_raised": len(all_objections),
+                "questions_asked": all_lead_questions,
+                "engagement_pattern": "high" if len(all_strengths) > len(all_weaknesses) else "medium" if len(all_strengths) == len(all_weaknesses) else "low",
+                "buying_signals": all_buying_signals,
+                "concerns_expressed": all_concerns
+            },
+            "performance_metrics": {
+                "rapport_building": detailed_analysis["engagement_rapport"]["score"],
+                "discovery": detailed_analysis["discovery_qualification"]["score"],
+                "objection_handling": detailed_analysis["objection_handling"]["score"],
+                "pitch_delivery": sum(score['detailed_metrics'].get('pitch_delivery', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
+                "closing_effectiveness": detailed_analysis["closing_effectiveness"]["score"],
+                "overall_performance": overall_score
+            }
+        }
+
 def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Dict] = None) -> Dict:
     """
     Aggregate all chunk-level analyses into a comprehensive evaluation report.
-    Uses the detailed chunk analysis results directly to preserve specificity.
+    Uses AI to create professional executive summary while preserving chunk-specific details.
     """
     # Collect all reference files used across chunks
     all_reference_files = set()
@@ -698,54 +921,25 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         }
     }
     
-    # Build final report using detailed chunk data
-    final_report = {
-        "report_metadata": {
-            "total_chunks_analyzed": len(chunk_analyses),
-            "reference_files_used": list(all_reference_files),
-            "analysis_timestamp": datetime.now().isoformat(),
-            "call_duration_estimated": f"{len(chunk_analyses) * 5} minutes"  # Rough estimate
-        },
-        "executive_summary": {
-            "overall_assessment": generate_overall_assessment(overall_score, letter_grade, len(all_strengths), len(all_weaknesses), len(chunk_analyses)),
-            "overall_score": round(overall_score, 1),
-            "letter_grade": letter_grade,
-            "key_highlights": [s['description'] for s in all_strengths[:3]],  # Top 3 strengths
-            "critical_areas": [w['description'] for w in all_weaknesses[:3]]  # Top 3 weaknesses
-        },
-        "detailed_analysis": detailed_analysis,
-        "custom_business_rules": {
-            "violations_found": all_violations,
-            "total_violations": total_violations,
-            "total_score_penalty": total_score_penalty,
-            "recommendations": ["Review business rules compliance", "Improve adherence to company guidelines"]
-        },
-        "coaching_recommendations": all_coaching_recommendations,
-        "reference_comparisons": {
-            "similarities_to_successful_calls": [s.get('reference_comparison', '') for s in all_strengths if s.get('reference_comparison')],
-            "differences_from_successful_calls": [w.get('reference_comparison', '') for w in all_weaknesses if w.get('reference_comparison')],
-            "best_practices_demonstrated": [s['description'] for s in all_strengths],
-            "missed_opportunities": [w['description'] for w in all_weaknesses]
-        },
-        "lead_interaction_summary": {
-            "total_questions_asked": len(all_lead_questions),
-            "total_objections_raised": len(all_objections),
-            "questions_asked": all_lead_questions,
-            "engagement_pattern": "high" if len(all_strengths) > len(all_weaknesses) else "medium" if len(all_strengths) == len(all_weaknesses) else "low",
-            "buying_signals": all_buying_signals,
-            "concerns_expressed": all_concerns
-        },
-        "performance_metrics": {
-            "rapport_building": detailed_analysis["engagement_rapport"]["score"],
-            "discovery": detailed_analysis["discovery_qualification"]["score"],
-            "objection_handling": detailed_analysis["objection_handling"]["score"],
-            "pitch_delivery": sum(score['detailed_metrics'].get('pitch_delivery', {}).get('score', 0) for score in all_scores) / max(len(all_scores), 1),
-            "closing_effectiveness": detailed_analysis["closing_effectiveness"]["score"],
-            "overall_performance": overall_score
-        }
-    }
+    # Use AI to create final analysis in exact frontend format
+    ai_final_analysis = generate_ai_final_analysis(
+        overall_score=overall_score,
+        letter_grade=letter_grade,
+        all_strengths=all_strengths,
+        all_weaknesses=all_weaknesses,
+        all_coaching_recommendations=all_coaching_recommendations,
+        all_violations=all_violations,
+        total_chunks=len(chunk_analyses),
+        detailed_analysis=detailed_analysis,
+        all_lead_questions=all_lead_questions,
+        all_objections=all_objections,
+        all_concerns=all_concerns,
+        all_buying_signals=all_buying_signals,
+        all_reference_files=list(all_reference_files)
+    )
     
-    return final_report
+    # Return the AI-generated final analysis in the exact format expected by frontend
+    return ai_final_analysis
 
 def format_rules(business_rules: List[Dict]) -> str:
     """Format business rules as a compact numbered list, including violation_text and correct_text."""
