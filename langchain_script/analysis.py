@@ -285,7 +285,6 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '      "rapport_building": {"score": 8},\n'
         '      "discovery": {"score": 7},\n'
         '      "objection_handling": {"score": 9},\n'
-        '      "pitch_delivery": {"score": 8},\n'
         '      "closing_effectiveness": {"score": 7}\n'
         '    }\n'
         '  },\n'
@@ -677,7 +676,6 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
             "rapport_building": {category_scores.get('engagement_rapport', 0):.1f},
             "discovery": {category_scores.get('discovery_qualification', 0):.1f},
             "objection_handling": {category_scores.get('objection_handling', 0):.1f},
-            "pitch_delivery": {category_scores.get('pitch_delivery', 0):.1f},
             "closing_effectiveness": {category_scores.get('closing_effectiveness', 0):.1f},
             "overall_performance": {overall_score:.1f}
         }}
@@ -740,7 +738,6 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
                 "rapport_building": detailed_analysis["engagement_rapport"]["score"],
                 "discovery": detailed_analysis["discovery_qualification"]["score"],
                 "objection_handling": detailed_analysis["objection_handling"]["score"],
-                "pitch_delivery": detailed_analysis.get("pitch_delivery", {}).get("score", 0),
                 "closing_effectiveness": detailed_analysis["closing_effectiveness"]["score"],
                 "overall_performance": overall_score
             }
@@ -928,7 +925,6 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         detailed_analysis["rapport_building"]["score"],
         detailed_analysis["discovery_qualification"]["score"],
         detailed_analysis["objection_handling"]["score"],
-        detailed_analysis["pitch_delivery"]["score"],
         detailed_analysis["closing_effectiveness"]["score"]
     ]
     overall_performance = sum(detailed_scores) / len(detailed_scores)
@@ -968,7 +964,6 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"])),
             "discovery": int(round(detailed_analysis["discovery_qualification"]["score"])),
             "objection_handling": int(round(detailed_analysis["objection_handling"]["score"])),
-            "pitch_delivery": int(round(detailed_analysis["pitch_delivery"]["score"])),
             "closing_effectiveness": int(round(detailed_analysis["closing_effectiveness"]["score"])),
             "overall_performance": int(round(overall_performance))
         }
