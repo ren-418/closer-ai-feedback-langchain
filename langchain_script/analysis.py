@@ -591,7 +591,7 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
     Create a comprehensive final analysis in the EXACT format expected by the frontend:
 
     1. EXECUTIVE SUMMARY: Professional assessment with key highlights and critical areas
-    2. DETAILED ANALYSIS: Organized by category (objection_handling, engagement_rapport, discovery_qualification, closing_effectiveness) with scores, strengths, weaknesses, and specific details
+    2. DETAILED ANALYSIS: Organized by category (objection_handling, rapport_building, discovery_qualification, closing_effectiveness) with scores, strengths, weaknesses, and specific details
     3. COACHING RECOMMENDATIONS: Structured recommendations with priority, category, recommendation, reference_example, and expected_impact
     4. REFERENCE COMPARISONS: Similarities, differences, best practices, and missed opportunities
     5. LEAD INTERACTION SUMMARY: Total counts, questions, engagement pattern, buying signals, and concerns
@@ -628,8 +628,8 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
                 "objections_encountered": ["objection 1", "objection 2"],
                 "handling_techniques_used": ["technique 1", "technique 2"]
             }},
-            "engagement_rapport": {{
-                "score": {category_scores.get('engagement_rapport', 0):.1f},
+            "rapport_building": {{
+                "score": {category_scores.get('rapport_building', 0):.1f},
                 "strengths": ["strength 1", "strength 2"],
                 "weaknesses": ["weakness 1", "weakness 2"],
                 "rapport_building_moments": ["moment 1", "moment 2"]
@@ -652,7 +652,7 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
         "coaching_recommendations": [
             {{
                 "priority": "high/medium/low",
-                "category": "objection_handling/engagement_rapport/discovery_qualification/closing_effectiveness",
+                "category": "objection_handling/rapport_building/discovery_qualification/closing_effectiveness",
                 "recommendation": "Specific recommendation with details",
                 "reference_example": "Reference to successful call example",
                 "expected_impact": "Expected impact of this recommendation"
@@ -673,7 +673,7 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
             "concerns_expressed": ["concern 1", "concern 2"]
         }},
         "performance_metrics": {{
-            "rapport_building": {category_scores.get('engagement_rapport', 0):.1f},
+            "rapport_building": {category_scores.get('rapport_building', 0):.1f},
             "discovery": {category_scores.get('discovery_qualification', 0):.1f},
             "objection_handling": {category_scores.get('objection_handling', 0):.1f},
             "closing_effectiveness": {category_scores.get('closing_effectiveness', 0):.1f},
@@ -735,7 +735,7 @@ def generate_ai_final_analysis(overall_score: float, letter_grade: str, all_stre
                 "concerns_expressed": all_concerns
             },
             "performance_metrics": {
-                "rapport_building": detailed_analysis["engagement_rapport"]["score"],
+                "rapport_building": detailed_analysis["rapport_building"]["score"],
                 "discovery": detailed_analysis["discovery_qualification"]["score"],
                 "objection_handling": detailed_analysis["objection_handling"]["score"],
                 "closing_effectiveness": detailed_analysis["closing_effectiveness"]["score"],
@@ -845,7 +845,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             rapport_building = detailed.get('rapport_building', {})
             for moment in rapport_building.get('rapport_building_moments', []):
                 detailed_analysis['rapport_building']['rapport_building_moments'].append(f"{moment}")
-            # Add strengths/weaknesses for engagement_rapport
+            # Add strengths/weaknesses for rapport_building
             for strength in rapport_building.get('strengths', []):
                 detailed_analysis['rapport_building']['strengths'].append(strength)
             for weakness in rapport_building.get('weaknesses', []):
@@ -961,7 +961,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "concerns_expressed": all_concerns
         },
         "performance_metrics": {
-            "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"])),
+            "rapport_building": int(round(detailed_analysis["rapport_building"]["score"])),
             "discovery": int(round(detailed_analysis["discovery_qualification"]["score"])),
             "objection_handling": int(round(detailed_analysis["objection_handling"]["score"])),
             "closing_effectiveness": int(round(detailed_analysis["closing_effectiveness"]["score"])),
