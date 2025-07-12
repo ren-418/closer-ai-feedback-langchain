@@ -277,10 +277,9 @@ class DatabaseManager:
                 # Track category scores and patterns
                 category_scores = {
                     'objection_handling': [],
-                    'engagement_rapport': [],
+                    'rapport_building': [],
                     'discovery_qualification': [],
                     'closing_effectiveness': [],
-                    'pitch_delivery': []
                 }
                 
                 # Track high-level patterns across calls
@@ -308,7 +307,7 @@ class DatabaseManager:
                             if 'objection' in rec.lower():
                                 focus_patterns['objection_handling'] += 1
                             elif 'rapport' in rec.lower() or 'engagement' in rec.lower():
-                                focus_patterns['engagement_rapport'] += 1
+                                focus_patterns['rapport_building'] += 1
                             elif 'discovery' in rec.lower() or 'qualification' in rec.lower():
                                 focus_patterns['discovery_qualification'] += 1
                             elif 'closing' in rec.lower() or 'payment' in rec.lower():
@@ -339,7 +338,7 @@ class DatabaseManager:
                         else:
                             return "Objection handling is generally strong across the team"
                     
-                    elif category == 'engagement_rapport':
+                    elif category == 'rapport_building':
                         if percentage > 60:
                             return "Team needs focus on building stronger rapport"
                         elif percentage > 30:
@@ -522,7 +521,7 @@ class DatabaseManager:
             detailed_analysis = final_analysis.get('detailed_analysis', {})
             if detailed_analysis:
                 performance_data.update({
-                    'rapport_building_score': detailed_analysis.get('engagement_rapport', {}).get('score'),
+                    'rapport_building_score': detailed_analysis.get('rapport_building', {}).get('score'),
                     'discovery_score': detailed_analysis.get('discovery_qualification', {}).get('score'),
                     'objection_handling_score': detailed_analysis.get('objection_handling', {}).get('score'),
                     'pitch_delivery_score': detailed_analysis.get('pitch_delivery', {}).get('score'),
