@@ -892,6 +892,16 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     else:
         letter_grade = "E"
     
+    # Calculate overall performance from detailed analysis scores for consistency
+    detailed_scores = [
+        detailed_analysis["engagement_rapport"]["score"],
+        detailed_analysis["discovery_qualification"]["score"],
+        detailed_analysis["objection_handling"]["score"],
+        detailed_analysis["pitch_delivery"]["score"],
+        detailed_analysis["closing_effectiveness"]["score"]
+    ]
+    overall_performance = sum(detailed_scores) / len(detailed_scores)
+    
     # Build final report with exact structure expected by frontend
     final_report = {
         "report_metadata": {
@@ -923,16 +933,6 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             "buying_signals": all_buying_signals,
             "concerns_expressed": all_concerns
         },
-        # Calculate overall performance from detailed analysis scores for consistency
-        detailed_scores = [
-            detailed_analysis["engagement_rapport"]["score"],
-            detailed_analysis["discovery_qualification"]["score"],
-            detailed_analysis["objection_handling"]["score"],
-            detailed_analysis["pitch_delivery"]["score"],
-            detailed_analysis["closing_effectiveness"]["score"]
-        ]
-        overall_performance = sum(detailed_scores) / len(detailed_scores)
-        
         "performance_metrics": {
             "rapport_building": int(round(detailed_analysis["engagement_rapport"]["score"])),
             "discovery": int(round(detailed_analysis["discovery_qualification"]["score"])),
