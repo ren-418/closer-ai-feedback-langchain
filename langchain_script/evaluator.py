@@ -19,9 +19,12 @@ class SalesCallEvaluator:
     def evaluate_transcript(self, transcript: str, top_k: int = 3) -> Dict:
         """
         Evaluate a sales call transcript using RAG and structured analysis.
+        Uses OpenAI Batch API for chunk analysis if possible.
         Returns a comprehensive evaluation report with reference file tracking.
         Handles large transcripts by chunking and progress reporting.
         """
+        import tempfile
+        import time
         try:
             print("[Evaluator] Starting transcript evaluation...")
             print(f"[Evaluator] Transcript length: {len(transcript)} characters")
@@ -34,41 +37,111 @@ class SalesCallEvaluator:
             chunks_data = embed_new_transcript(transcript)
             total_chunks = len(chunks_data)
             print(f"[Evaluator] {total_chunks} chunks to analyze.")
-            
-            # Analyze each chunk
-            chunk_analyses = []
-            
+
+            # --- BATCH API WORKFLOW START ---
+            print("[Evaluator] Preparing batch file for OpenAI Batch API...")
+            batch_tasks = []
+            chunk_id_map = {}  # Map custom_id to chunk_data for later matching
             for idx, chunk_data in enumerate(chunks_data):
-                print(f"[Evaluator] Analyzing chunk {idx+1}/{total_chunks}...")
-                
                 # Find similar chunks from good calls
                 similar_chunks = self.pinecone_manager.find_similar_calls(
                     chunk_data['chunk_text'],
                     top_k=top_k
                 )
-                
-                # Analyze the chunk with enhanced analysis
-                analysis = analyze_chunk_with_rag(
+                # Build prompt
+                from .analysis import build_chunk_analysis_prompt
+                prompt = build_chunk_analysis_prompt(
                     chunk_data['chunk_text'],
                     similar_chunks,
                     chunk_data['context_prev'],
                     chunk_data['context_next'],
                     business_rules=business_rules
                 )
-                
-                chunk_analyses.append({
+                custom_id = f"chunk-{idx+1}"
+                chunk_id_map[custom_id] = {
                     'chunk_number': chunk_data['chunk_number'],
                     'total_chunks': chunk_data['total_chunks'],
                     'chunk_text_preview': chunk_data['chunk_text'][:200] + "..." if len(chunk_data['chunk_text']) > 200 else chunk_data['chunk_text'],
-                    'analysis': analysis
+                }
+                # Prepare batch task
+                batch_tasks.append({
+                    "custom_id": custom_id,
+                    "method": "POST",
+                    "url": "/v1/chat/completions",
+                    "body": {
+                        "model": "gpt-4",
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 2000,
+                        "response_format": {"type": "json_object"}
+                    }
                 })
-            
+            # Write batch file
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as batch_file:
+                for task in batch_tasks:
+                    batch_file.write(json.dumps(task) + "\n")
+                batch_file_path = batch_file.name
+            print(f"[Evaluator] Batch file written: {batch_file_path}")
+            # Upload batch file
+            from openai import OpenAI
+            client = self.openai_client
+            batch_file_obj = client.files.create(
+                file=open(batch_file_path, "rb"),
+                purpose="batch"
+            )
+            print(f"[Evaluator] Batch file uploaded: {batch_file_obj.id}")
+            # Create batch job
+            batch_job = client.batches.create(
+                input_file_id=batch_file_obj.id,
+                endpoint="/v1/chat/completions",
+                completion_window="24h"
+            )
+            print(f"[Evaluator] Batch job created: {batch_job.id}")
+            # Poll for completion
+            print("[Evaluator] Waiting for batch job to complete...")
+            while True:
+                job_status = client.batches.retrieve(batch_job.id)
+                if job_status.status == "completed":
+                    print("[Evaluator] Batch job completed.")
+                    break
+                elif job_status.status in ("failed", "expired", "cancelled"):
+                    print(f"[Evaluator] Batch job failed with status: {job_status.status}")
+                    raise Exception(f"Batch job failed: {job_status.status}")
+                else:
+                    print(f"[Evaluator] Batch job status: {job_status.status} (waiting 10s)")
+                    time.sleep(10)
+            # Download results
+            result_file_id = job_status.output_file_id
+            if not result_file_id:
+                raise Exception("Batch job completed but no output_file_id found. Cannot download results.")
+            result_content = client.files.content(result_file_id).content
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".jsonl") as result_file:
+                result_file.write(result_content)
+                result_file_path = result_file.name
+            print(f"[Evaluator] Batch results downloaded: {result_file_path}")
+            # Parse results
+            chunk_analyses = []
+            with open(result_file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    res = json.loads(line.strip())
+                    custom_id = res["custom_id"]
+                    response_body = res["response"]["body"]
+                    # The LLM output is in response_body["choices"][0]["message"]["content"]
+                    try:
+                        analysis = json.loads(response_body["choices"][0]["message"]["content"])
+                    except Exception as e:
+                        analysis = {"error": f"Failed to parse LLM output: {e}", "raw": response_body}
+                    chunk_analyses.append({
+                        **chunk_id_map[custom_id],
+                        'analysis': analysis
+                    })
             # Aggregate all chunk analyses into final report
             print("[Evaluator] Aggregating chunk analyses into final report...")
             final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses], business_rules=business_rules)
-            
             print("[Evaluator] Evaluation complete.")
-            
             # Enhanced metadata with reference tracking
             metadata = {
                 'total_chunks': total_chunks,
@@ -78,7 +151,6 @@ class SalesCallEvaluator:
                 'transcript_length': len(transcript),
                 'estimated_call_duration': f"{total_chunks * 2-3} minutes"  # Rough estimate
             }
-            
             return {
                 'transcript_analysis': {
                     'summary': final_analysis.get('executive_summary', {}),
@@ -90,17 +162,64 @@ class SalesCallEvaluator:
                 'metadata': metadata,
                 'status': 'success'
             }
-            
         except Exception as e:
-            print(f"[Evaluator] Error: {e}")
-            return {
-                'error': str(e),
-                'status': 'failed',
-                'metadata': {
+            print(f"[Evaluator] Batch API error: {e}")
+            print("[Evaluator] Falling back to per-chunk analysis...")
+            # --- FALLBACK: Old per-chunk method ---
+            try:
+                # Chunk and embed the transcript
+                chunks_data = embed_new_transcript(transcript)
+                total_chunks = len(chunks_data)
+                business_rules = self.db_manager.get_business_rules()
+                chunk_analyses = []
+                for idx, chunk_data in enumerate(chunks_data):
+                    similar_chunks = self.pinecone_manager.find_similar_calls(
+                        chunk_data['chunk_text'],
+                        top_k=top_k
+                    )
+                    analysis = analyze_chunk_with_rag(
+                        chunk_data['chunk_text'],
+                        similar_chunks,
+                        chunk_data['context_prev'],
+                        chunk_data['context_next'],
+                        business_rules=business_rules
+                    )
+                    chunk_analyses.append({
+                        'chunk_number': chunk_data['chunk_number'],
+                        'total_chunks': chunk_data['total_chunks'],
+                        'chunk_text_preview': chunk_data['chunk_text'][:200] + "..." if len(chunk_data['chunk_text']) > 200 else chunk_data['chunk_text'],
+                        'analysis': analysis
+                    })
+                final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses], business_rules=business_rules)
+                metadata = {
+                    'total_chunks': total_chunks,
+                    'references_per_chunk': top_k,
+                    'total_reference_files_used': 0,
                     'evaluation_timestamp': datetime.now().isoformat(),
-                    'error_type': type(e).__name__
+                    'transcript_length': len(transcript),
+                    'estimated_call_duration': f"{total_chunks * 2-3} minutes"
                 }
-            }
+                return {
+                    'transcript_analysis': {
+                        'summary': final_analysis.get('executive_summary', {}),
+                        'overall_score': final_analysis.get('executive_summary', {}).get('overall_score', 0),
+                        'letter_grade': final_analysis.get('executive_summary', {}).get('letter_grade', 'C')
+                    },
+                    'chunk_analyses': chunk_analyses,
+                    'final_analysis': final_analysis,
+                    'metadata': metadata,
+                    'status': 'success'
+                }
+            except Exception as e2:
+                print(f"[Evaluator] Error: {e2}")
+                return {
+                    'error': str(e2),
+                    'status': 'failed',
+                    'metadata': {
+                        'evaluation_timestamp': datetime.now().isoformat(),
+                        'error_type': type(e2).__name__
+                    }
+                }
     
     def evaluate_transcript_file(self, file_path: str, encoding: str = 'utf-8') -> Dict:
         """
