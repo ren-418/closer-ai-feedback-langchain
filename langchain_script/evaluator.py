@@ -115,9 +115,10 @@ class SalesCallEvaluator:
             # Download results
             result_file_id = job_status.output_file_id
             retries = 0
-            while not result_file_id and retries < 5:
+            max_retries = 10
+            while not result_file_id and retries < max_retries:
                 print("[Evaluator] Waiting for output_file_id to become available...")
-                time.sleep(5)
+                time.sleep(10)
                 job_status = client.batches.retrieve(batch_job.id)
                 result_file_id = job_status.output_file_id
                 retries += 1
