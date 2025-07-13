@@ -607,9 +607,7 @@ class DatabaseManager:
                 'criteria_name': criteria_name,
                 'description': description,
                 'violation_text': violation_text,
-                'correct_text': correct_text,
                 'score_penalty': score_penalty,
-                'feedback_message': feedback_message or f"Violation: {violation_text}",
                 'category': category,
                 'is_active': True
             }

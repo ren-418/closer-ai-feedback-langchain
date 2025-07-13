@@ -173,7 +173,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     if business_rules and len(business_rules) > 0:
         rules_text = format_rules(business_rules)
         rules_section = (
-            f"\nBUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY):\n{rules_text}\n\n"
+            f"\nBUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY,THIS IS VERY IMPORTANT TO CHECK):\n{rules_text}\n\n"
             "For each violation found (based ONLY on the above business rules):\n"
             "- Note the exact text and context where it appears\n"
             "- Suggest the correct term to use\n"
@@ -245,7 +245,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         '        "rule": "rule_name",\n'
         '        "violation_text": "problematic phrase",\n'
         '        "context": "The full sentence or context",\n'
-        '        "correct_text": "preferred phrase",\n'
+        '        "recommendation": "preferred phrase",\n'
         '        "explanation": "Why this is a problem",\n'
         '        "score_impact": -2\n'
         '      }\n'
@@ -867,8 +867,9 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             closing_effectiveness = detailed.get('closing_effectiveness', {})
             for attempt in closing_effectiveness.get('closing_attempts', []):
                 detailed_analysis['closing_effectiveness']['closing_attempts'].append(f"{attempt}")
-            if closing_effectiveness.get('payment_discussion'):
-                detailed_analysis['closing_effectiveness']['payment_discussion'] += f"{closing_effectiveness['payment_discussion']} "
+            # Handle payment_discussion exactly like other array fields
+            for pd_item in closing_effectiveness.get('payment_discussion', []):
+                detailed_analysis['closing_effectiveness']['payment_discussion'].append(f"{pd_item}")
             # Add strengths/weaknesses for closing_effectiveness
             for strength in closing_effectiveness.get('strengths', []):
                 detailed_analysis['closing_effectiveness']['strengths'].append(strength)
@@ -929,6 +930,48 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     ]
     overall_performance = sum(detailed_scores) / len(detailed_scores)
     
+    # Aggregate business rule violations by rule (simple format)
+    violations_by_rule = {}
+    for violation in all_violations:
+        # Use criteria_name or rule as the key
+        rule_key = violation.get('criteria_name') or violation.get('rule')
+        if not rule_key:
+            continue
+        if rule_key not in violations_by_rule:
+            # Find the rule description and penalty from business_rules
+            rule_obj = next((r for r in (business_rules or []) if r.get('criteria_name') == rule_key), {})
+            violations_by_rule[rule_key] = {
+                'rule': rule_obj.get('description', rule_key),
+                'total_violations': 0,
+                'total_score_penalty': 0,
+                'items': []
+            }
+        # Add the violation instance (simple fields only)
+        violations_by_rule[rule_key]['items'].append({
+            'violation_text': violation.get('violation_text', ''),
+            'example': violation.get('context', ''),
+            'recommendation': violation.get('recommendation', '')
+        })
+        # Update counts
+        penalty = violation.get('score_impact') or violation.get('score_penalty') or -2
+        violations_by_rule[rule_key]['total_violations'] += 1
+        violations_by_rule[rule_key]['total_score_penalty'] += penalty
+
+    # Convert to list for report
+    violations_by_rule_list = list(violations_by_rule.values())
+
+    # Build a flat list of violation items
+    violation_items = []
+    total_score_penalty = 0
+    for violation in all_violations:
+        violation_items.append({
+            "violation_text": violation.get("violation_text", ""),
+            "example": violation.get("context", ""),
+            "recommendation": violation.get("recommendation", "")
+        })
+        penalty = violation.get("score_impact") or violation.get("score_penalty") or -2
+        total_score_penalty += penalty
+
     # Build final report with exact structure expected by frontend
     final_report = {
         "report_metadata": {
@@ -970,15 +1013,11 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     }
     
     # Add business rules violations if any
-    if all_violations:
+    if violation_items:
         final_report["custom_business_rules"] = {
-            "violations_found": all_violations,
-            "total_violations": total_violations,
-            "total_score_penalty": total_score_penalty,
-            "recommendations": [
-                "Review business rule compliance",
-                "Ensure proper terminology usage"
-            ]
+            "violations": violation_items,
+            "total_violations": len(violation_items),
+            "total_score_penalty": total_score_penalty
         }
     
     return final_report
@@ -990,7 +1029,6 @@ def format_rules(business_rules: List[Dict]) -> str:
         lines.append(
             f"{i}. {rule.get('criteria_name', 'Rule')}: {rule.get('description', '')} "
             f"(Violation: '{rule.get('violation_text', '')}'"
-            + (f", Correct: '{rule.get('correct_text', '')}'" if rule.get('correct_text') else "")
             + f", Penalty: {rule.get('score_penalty', 0)})"
         )
     return '\n'.join(lines)
