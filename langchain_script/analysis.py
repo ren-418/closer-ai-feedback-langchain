@@ -178,7 +178,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
             "- Note the exact text and context where it appears\n"
             "- Suggest the correct term to use\n"
             "- Explain why it's a violation and its business impact\n"
-            "- Indicate score penalty (typically -2 points per violation)\n"
+            "- Indicate score penalty (see above rules for details)\n"
         )
     else:
         rules_section = (
