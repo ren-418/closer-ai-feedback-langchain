@@ -114,6 +114,13 @@ class SalesCallEvaluator:
                     time.sleep(10)
             # Download results
             result_file_id = job_status.output_file_id
+            retries = 0
+            while not result_file_id and retries < 5:
+                print("[Evaluator] Waiting for output_file_id to become available...")
+                time.sleep(5)
+                job_status = client.batches.retrieve(batch_job.id)
+                result_file_id = job_status.output_file_id
+                retries += 1
             if not result_file_id:
                 raise Exception("Batch job completed but no output_file_id found. Cannot download results.")
             result_content = client.files.content(result_file_id).content
