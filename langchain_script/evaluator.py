@@ -99,18 +99,19 @@ class SalesCallEvaluator:
             )
             print(f"[Evaluator] Batch job created: {batch_job.id}")
             # Poll for completion
-            print("[Evaluator] Waiting for batch job to complete...")
+            max_wait_seconds = 2 * 60 * 60  # 2 hours
+            poll_interval = 10  # seconds
+            start_time = time.time()
             while True:
                 job_status = client.batches.retrieve(batch_job.id)
+                print(f"Batch job status: {job_status.status}")
                 if job_status.status == "completed":
-                    print("[Evaluator] Batch job completed.")
                     break
                 elif job_status.status in ("failed", "expired", "cancelled"):
-                    print(f"[Evaluator] Batch job failed with status: {job_status.status}")
                     raise Exception(f"Batch job failed: {job_status.status}")
-                else:
-                    print(f"[Evaluator] Batch job status: {job_status.status} (waiting 10s)")
-                    time.sleep(10)
+                if time.time() - start_time > max_wait_seconds:
+                    raise Exception("Batch job polling timed out after 2 hours.")
+                time.sleep(poll_interval)
             # Download results
             result_file_id = job_status.output_file_id
             retries = 0
