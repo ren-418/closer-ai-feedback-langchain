@@ -49,7 +49,7 @@ class SalesCallEvaluator:
                     top_k=top_k
                 )
                 # Build prompt
-                from .analysis import build_chunk_analysis_prompt
+                from .analysis import build_chunk_analysis_prompt, calculate_prompt_tokens
                 prompt = build_chunk_analysis_prompt(
                     chunk_data['chunk_text'],
                     similar_chunks,
@@ -57,6 +57,13 @@ class SalesCallEvaluator:
                     chunk_data['context_next'],
                     business_rules=business_rules
                 )
+                # Dynamically calculate allowed_max_tokens as in non-batch mode
+                prompt_tokens = calculate_prompt_tokens(prompt)
+                allowed_max_tokens = min(4000, 8192 - prompt_tokens - 128)  # MAX_RESPONSE_TOKENS, CONTEXT_WINDOW, SAFETY_BUFFER
+                allowed_max_tokens = max(256, allowed_max_tokens)
+                if allowed_max_tokens < 256:
+                    print(f"[Batch] Skipping chunk {idx+1}: prompt too long for model context window.")
+                    continue
                 custom_id = f"chunk-{idx+1}"
                 chunk_id_map[custom_id] = {
                     'chunk_number': chunk_data['chunk_number'],
@@ -74,7 +81,7 @@ class SalesCallEvaluator:
                             {"role": "user", "content": prompt}
                         ],
                         "temperature": 0.3,
-                        "max_tokens": 2000
+                        "max_tokens": allowed_max_tokens
                     }
                 })
             # Write batch file
