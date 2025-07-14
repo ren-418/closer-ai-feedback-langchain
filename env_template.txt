@@ -1,0 +1,10 @@
+# Environment Variables Template
+# Copy this file to .env and fill in your actual values
+
+# Make.com Webhook URL
+MAKE_WEBHOOK_URL=https://hook.us2.make.com/vm4hneqqbptwk27o7grk83d99vpgbjmi
+
+# Other environment variables (uncomment and fill as needed)
+# OPENAI_API_KEY=your_openai_api_key_here
+# SUPABASE_URL=your_supabase_url_here
+# SUPABASE_KEY=your_supabase_key_here 

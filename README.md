@@ -76,15 +76,19 @@ pip install -r requirements.txt
 
 ### 3. Configure Environment
 
-Copy `.env.example` to `.env` and fill in:
+Copy `env_template.txt` to `.env` and fill in your values:
 
 ```
+# Required API Keys
 OPENAI_API_KEY=your_openai_key
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your_supabase_key
 PINECONE_API_KEY=your_pinecone_key
 PINECONE_CLOUD=aws
 PINECONE_REGION=us-east-1
+
+# Make.com Webhook (for automation)
+MAKE_WEBHOOK_URL=https://hook.us2.make.com/your_webhook_endpoint
 ```
 
 ### 4. Prepare Reference Data
