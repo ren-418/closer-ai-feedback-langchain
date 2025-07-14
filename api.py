@@ -425,7 +425,7 @@ async def new_call(request: NewCallRequest, background_tasks: BackgroundTasks):
         return {"status": "error", "detail": "Internal server error."}
 
 # Helper function for background analysis and Make.com notification
-MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL", "https://hook.us2.make.com/vm4hneqqbptwk27o7grk83d99vpgbjmi")
+MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL", "")
 
 def analyze_and_notify_make(call_id, closer_name, closer_email, lead_name,transcript_decoded,transcript_link):
     try:

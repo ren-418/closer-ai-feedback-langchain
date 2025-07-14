@@ -474,14 +474,38 @@ class DatabaseManager:
             
             # Calculate adjusted score
             base_score = executive_summary.get('overall_score', 0)
-            adjusted_score = max(0, base_score + total_score_penalty)  # Ensure score doesn't go below 0
+            adjusted_score = max(0, base_score + total_score_penalty)  # Ensure score doesn't go below 
+            if adjusted_score >= 94:
+                letter_grade = "A"
+            elif adjusted_score >= 90:
+                letter_grade = "A-"
+            elif adjusted_score >= 87:
+                letter_grade = "B+"
+            elif adjusted_score >= 84:
+                letter_grade = "B"
+            elif adjusted_score >= 80:
+                letter_grade = "B-"
+            elif adjusted_score >= 77:
+                letter_grade = "C+"
+            elif adjusted_score >= 74:
+                letter_grade = "C"
+            elif adjusted_score >= 70:
+                letter_grade = "C-"
+            elif adjusted_score >= 67:
+                letter_grade = "D+"
+            elif adjusted_score >= 64:
+                letter_grade = "D"
+            elif adjusted_score >= 60:
+                letter_grade = "D-"
+            else:
+                letter_grade = "E"
             
             update_data = {
                 'status': 'analyzed',
                 'total_chunks': metadata.get('total_chunks'),
                 'total_reference_files_used': metadata.get('total_reference_files_used'),
                 'overall_score': adjusted_score,
-                'letter_grade': executive_summary.get('letter_grade'),
+                'letter_grade':letter_grade,
                 'analysis_timestamp': datetime.now().isoformat()
             }
             
