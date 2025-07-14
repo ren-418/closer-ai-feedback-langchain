@@ -110,101 +110,106 @@ def embed_new_transcript(transcript_text: str) -> List[Dict]:
     return results
 
 def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '', business_rules: List[Dict] = None) -> str:
-    """
-    Build a professional prompt for analyzing a chunk with reference examples and context window.
-    Includes token safety checks and explicit instructions for lead question extraction.
-    """
-   
-    # Base prompt structure
+    # STYLE REQUIREMENTS at the very top
+    style_requirements = (
+        "STYLE REQUIREMENTS (IMPORTANT):\n"
+        "- Use professional, concise business language.\n"
+        "- Do NOT use phrases like 'the closer', 'the lead', 'in this chunk', 'in this segment', or similar chunk-specific references.\n"
+        "- Do NOT mention negatives such as 'no objections in this chunk', 'no issues', 'none', or 'nothing to note'.\n"
+        "- Write feedback so it can be aggregated into a final report without repetition or boilerplate.\n"
+        "- Always include all specific, actionable, and transcript-based details.\n"
+        "- Reference exact lines or phrases from the transcript for every point, but phrase your feedback naturally and professionally.\n"
+        "- Avoid repetition and boilerplate, but do NOT omit important information or become vague.\n"
+        "- Write as if summarizing the entire call, but keep all relevant specifics.\n"
+        "- If you violate these style rules, your output will be rejected.\n\n"
+    )
+
+    # BUSINESS RULES section highlighted
+    if business_rules and len(business_rules) > 0:
+        from .analysis import format_rules
+        rules_text = format_rules(business_rules)
+        rules_section = (
+            "BUSINESS RULES TO CHECK (STRICT, CRITICAL):\n"
+            "- Carefully review the following business rules.\n"
+            "- For EACH violation found (based ONLY on the rules below):\n"
+            "    - Note the exact text and context where it appears.\n"
+            "    - Suggest the correct term to use.\n"
+            "    - Explain why it's a violation and its business impact.\n"
+            "    - Indicate score penalty (see below).\n"
+            f"{rules_text}\n\n"
+        )
+    else:
+        rules_section = (
+            "NO BUSINESS RULES are provided for this analysis. Do NOT invent or check for any business rule violations.\n"
+        )
+
+    # Base prompt structure (examples updated to avoid 'the closer', 'the lead', etc.)
     base_prompt = (
-        "You are an expert sales call evaluator with 15+ years of experience in sales training and coaching. "
+        style_requirements +
+        "You are an expert sales call evaluator with 15+ years of experience in sales training and coaching.\n"
         "Analyze this sales call chunk by comparing it to reference examples from successful calls.\n\n"
-        "IMPORTANT: In the transcript, the 'lead' is the prospect/customer, and the 'closer' is the sales representative. "
-        "Only extract questions that are asked by the lead. Do NOT include any questions asked by the closer.\n"
+        "IMPORTANT: In the transcript, the 'lead' is the prospect/customer, and the 'closer' is the sales representative. Only extract questions that are asked by the lead. Do NOT include any questions asked by the closer.\n"
         "If the transcript uses names, use the context to determine which speaker is the lead.\n\n"
         "Example:\n"
         "Transcript:\n"
-        "Closer: How are you today?\n"
-        "Lead: I'm good, thanks. Can you tell me more about your product?\n"
-        "Closer: Sure! What are your main challenges?\n"
-        "Lead: How much does it cost?\n\n"
+        "Speaker 1: How are you today?\n"
+        "Speaker 2: I'm good, thanks. Can you tell me more about your product?\n"
+        "Speaker 1: Sure! What are your main challenges?\n"
+        "Speaker 2: How much does it cost?\n\n"
         "Extracted lead questions:\n"
         "- Can you tell me more about your product?\n"
         "- How much does it cost?\n\n"
     )
-    
+
     # Add context sections
     context_sections = []
     if context_prev:
         context_sections.append(f"PREVIOUS CONTEXT:\n{context_prev}\n")
     if context_next:
         context_sections.append(f"NEXT CONTEXT:\n{context_next}\n")
-    
+
     # Current chunk
-    current_chunk = f"CURRENT CHUNK TO ANALYZE:\n```\n{chunk_text}\n```\n\n"
-    
+    current_chunk = f"CURRENT CHUNK TO ANALYZE:\n" + f"""\n{chunk_text}\n"""\n\n"
+
     # Reference examples with token management
     reference_section = "REFERENCE EXAMPLES FROM SUCCESSFUL CALLS:\n"
     ref_count = 0
-    
-    for i, ref in enumerate(reference_texts[:MAX_REF_CHUNKS], 1):
-        ref_text = truncate_reference_chunk(ref['metadata']['transcript'], MAX_REF_TOKENS)
+    for i, ref in enumerate(reference_texts[:3], 1):
+        ref_text = ref['metadata']['transcript'][:600]  # Truncate for brevity
         ref_label = ref['metadata'].get('label', f'Reference {i}')
-        ref_closer = ref['metadata'].get('closer_name', 'Unknown Closer')
         similarity_score = round(ref['score'], 3)
-        
         ref_content = (
             f"\n--- REFERENCE {i} (Similarity: {similarity_score}) ---\n"
             f"File: {ref_label}\n"
-            f"Closer: {ref_closer}\n"
-            f"Example:\n```\n{ref_text}\n```\n"
+            f"Example:\n" + f"""\n{ref_text}\n"""\n"
         )
-        
-        # Check if adding this reference would exceed limits
         test_prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + ref_content
-        if calculate_prompt_tokens(test_prompt) < MAX_TOTAL_PROMPT_TOKENS - 2000:  # Leave room for instructions
+        if len(test_prompt) < 6000:  # crude token check for this edit
             reference_section += ref_content
             ref_count += 1
         else:
-            print(f"[Token Management] Skipping reference {i} to stay within token limits")
             break
-    
-    # Business rules section
-    if business_rules and len(business_rules) > 0:
-        rules_text = format_rules(business_rules)
-        rules_section = (
-            f"\nBUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY,THIS IS VERY IMPORTANT TO CHECK):\n{rules_text}\n\n"
-            "For each violation found (based ONLY on the above business rules):\n"
-            "- Note the exact text and context where it appears like described \n"
-            "- Suggest the correct term to use\n"
-            "- Explain why it's a violation and its business impact\n"
-            "- Indicate score penalty (see above rules for details)\n"
-        )
-    else:
-        rules_section = (
-            "\nNO BUSINESS RULES are provided for this analysis. Do NOT invent or check for any business rule violations.\n"
-        )
-    
-    # Analysis instructions
+
+    # Analysis instructions (unchanged, but will follow new style)
     instructions = (
         "\nPROFESSIONAL ANALYSIS REQUIREMENTS:\n"
         "1. **Lead Questions**: Extract all questions asked by the lead (be specific)\n"
         "2. **Objections Identified**: List all objections that emerged during this chunk\n"
         "3. **Objection Handling Assessment**: \n"
-        "   - How effectively did the closer address each objection?\n"
+        "   - How effectively were objections addressed?\n"
         "   - What techniques were used? (mirroring, reframing, etc.)\n"
         "   - Compare to reference examples - what worked well?\n"
-        "4. **Engagement & Rapport**: Evaluate the closer's ability to build trust and maintain engagement\n"
-        "5. **Discovery & Qualification**: Assess how well the closer gathered information and qualified the lead\n"
+        "4. **Engagement & Rapport**: Evaluate ability to build trust and maintain engagement\n"
+        "5. **Discovery & Qualification**: Assess how well information was gathered and the lead was qualified\n"
         "6. **Payment Discussion**: Evaluate if and how payment options were presented\n"
         "7. **Business Rules Violations**: Check for any violations in this chunk\n"
         "\n"
         "***CRITICAL INSTRUCTION:*** All feedback, especially for weaknesses and coaching recommendations, must be extremely specific, detailed, and actionable.\n"
         "- Reference the exact lines or phrases from the transcript for every point.\n"
         "- For every weakness, enumerate precisely what was missing, unclear, or insufficient, and explain why.\n"
-        "- List the actual questions the closer asked that were weak or insufficient, and explain why they were not effective.\n"
-        "- Suggest specific, context-aware questions the closer could have asked instead, tailored to the lead's situation.\n"
-        "- If a solution or alternative was missing, describe in detail what solution(s) could have been offered, and how they should be presented to the lead.\n"
+        "- List the actual questions that were weak or insufficient, and explain why they were not effective.\n"
+        "- Suggest specific, context-aware questions that could have been asked instead, tailored to the lead's situation.\n"
+        "- If a solution or alternative was missing, describe in detail what solution(s) could have been offered, and how they should be presented.\n"
         "- For each coaching recommendation, provide a step-by-step, concrete example of how to implement it in a real conversation.\n"
         "- Identify any missed opportunities and specify exactly what should have been done differently, with sample dialogue.\n"
         "- ***Generic, vague, or high-level feedback is unacceptable and will be rejected.***\n"
@@ -223,14 +228,6 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         "Unacceptable: 'Should ask more discovery questions.'\n"
         "Acceptable: 'The closer missed an opportunity to ask about the lead's current workflow after the lead described their manual process. The closer should have asked: \"Can you walk me through your current process step by step?\" and \"What are the biggest bottlenecks you face day-to-day?\"'\n"
         "\n"
-        "\nSTYLE REQUIREMENTS:\n"
-        "- Use professional, concise business language.\n"
-        "- Do NOT use phrases like 'the closer', 'the lead', 'in this chunk', 'in this segment', or similar chunk-specific references.\n"
-        "- Do NOT mention negatives such as 'no objections in this chunk', 'no issues', 'none', or 'nothing to note'.\n"
-        "- However, always include all specific, actionable, and transcript-based details.\n"
-        "- Reference exact lines or phrases from the transcript for every point, but phrase your feedback naturally and professionally.\n"
-        "- Avoid repetition and boilerplate, but do NOT omit important information or become vague.\n"
-        "- Write as if summarizing the entire call, but keep all relevant specifics.\n"
         "Respond in this EXACT JSON format (note: for each item in 'detailed_analysis', include 'strengths' and 'weaknesses' arrays, and omit the 'comment' field from 'detailed_metrics'):\n"
         "{\n"
         '  "analysis_metadata": {\n'
@@ -347,24 +344,15 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         "60-63.9 = D-\n"
         "0-59.9  = E."
     )
-    
+
+    # Final reminder at the end
+    final_reminder = (
+        "\nREMINDER: If you use any chunk-specific, segment-specific, or role-specific boilerplate, or if you omit actionable details, your output will be rejected.\n"
+        "Follow ALL instructions above, including style requirements, business rules, scoring guidelines, and required JSON format.\n"
+    )
+
     # Build final prompt
-    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_section + instructions
-    # Final token check and summarization if needed
-    prompt_tokens = calculate_prompt_tokens(prompt)
-    if prompt_tokens > MAX_TOTAL_PROMPT_TOKENS:
-        print(f"[Token Management] Prompt too long ({prompt_tokens} tokens), truncating...")
-        # Truncate chunk text if needed
-        chunk_tokens = encoding.encode(chunk_text)
-        max_chunk_tokens_for_prompt = MAX_TOTAL_PROMPT_TOKENS - 3000  # Leave room for other content
-        if len(chunk_tokens) > max_chunk_tokens_for_prompt:
-            chunk_tokens = chunk_tokens[:max_chunk_tokens_for_prompt]
-            chunk_text = encoding.decode(chunk_tokens)
-            print(f"[Token Management] Truncated chunk to {len(chunk_tokens)} tokens")
-            # Rebuild prompt with truncated chunk
-            prompt = build_chunk_analysis_prompt(chunk_text, reference_texts, context_prev, context_next, business_rules)
-    
-    print(f"[Token Management] Final prompt: {calculate_prompt_tokens(prompt)} tokens")
+    prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + rules_section + instructions + final_reminder
     return prompt
 
 def analyze_chunk_with_rag(chunk_text: str, reference_chunks: List[Dict], context_prev: str = '', context_next: str = '', temperature: float = 0.3, business_rules: List[Dict] = None, chunk_number: int = None) -> Dict:
