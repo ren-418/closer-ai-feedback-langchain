@@ -169,7 +169,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         context_sections.append(f"NEXT CONTEXT:\n{context_next}\n")
 
     # Current chunk
-    current_chunk = f"CURRENT CHUNK TO ANALYZE:\n" + f"""\n{chunk_text}\n"""\n\n"
+    current_chunk = f"CURRENT CHUNK TO ANALYZE:\n" + f"""\n{chunk_text}\n"""\
 
     # Reference examples with token management
     reference_section = "REFERENCE EXAMPLES FROM SUCCESSFUL CALLS:\n"
@@ -181,7 +181,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         ref_content = (
             f"\n--- REFERENCE {i} (Similarity: {similarity_score}) ---\n"
             f"File: {ref_label}\n"
-            f"Example:\n" + f"""\n{ref_text}\n"""\n"
+            f"Example:\n" + f"""\n{ref_text}\n"""\
         )
         test_prompt = base_prompt + "".join(context_sections) + current_chunk + reference_section + ref_content
         if len(test_prompt) < 6000:  # crude token check for this edit
@@ -348,7 +348,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
     # Final reminder at the end
     final_reminder = (
         "\nREMINDER: If you use any chunk-specific, segment-specific, or role-specific boilerplate, or if you omit actionable details, your output will be rejected.\n"
-        "Follow ALL instructions above, including style requirements, business rules, scoring guidelines, and required JSON format.\n"
+        "Follow ALL instructions above, including PROFESSIONAL ANALYSIS REQUIREMENTS, style requirements, CRITICAL INSTRUCTION, business rules, scoring guidelines, and required JSON format.\n"
     )
 
     # Build final prompt
