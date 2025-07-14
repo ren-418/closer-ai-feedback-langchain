@@ -5,6 +5,7 @@ import json
 from openai import OpenAI
 import os
 from datetime import datetime
+import re
 from .analysis import embed_new_transcript, analyze_chunk_with_rag, aggregate_chunk_analyses
 from embeddings.pinecone_store import PineconeManager
 from database.database_manager import DatabaseManager
@@ -156,6 +157,37 @@ class SalesCallEvaluator:
             # Aggregate all chunk analyses into final report
             print("[Evaluator] Aggregating chunk analyses into final report...")
             final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses], business_rules=business_rules)
+
+            # --- POST-PROCESSING FOR CLIENT CONCISENESS ---
+            def clean_bullet(text):
+                # Remove boilerplate chunk references
+                text = re.sub(r"\b(in this chunk|in chunk \d+|in this segment)\b[\s,:-]*", "", text, flags=re.IGNORECASE)
+                # Remove repeated 'The closer' or 'The lead' at start
+                text = re.sub(r"^(The closer|The lead)[\s,:-]+", "", text, flags=re.IGNORECASE)
+                # Remove boilerplate about successful examples
+                text = re.sub(r"^(This is similar to the successful examples\.?|In the successful examples,?\s*)", "", text, flags=re.IGNORECASE)
+                return text.strip()
+
+            def is_redundant_negative(text):
+                # Remove bullets like 'No objections in this chunk', 'No objections', etc.
+                return bool(re.match(r"^(No objections|No objections in|No objections were|No concerns|No issues|No weaknesses|None\.?|N/A\.?|Nothing to note)\b", text.strip(), re.IGNORECASE))
+
+            # Clean up lists in final_analysis
+            for section in ["detailed_analysis", "executive_summary", "reference_comparisons", "lead_interaction_summary"]:
+                if section in final_analysis:
+                    for cat, val in (final_analysis[section].items() if isinstance(final_analysis[section], dict) else []):
+                        for field in ["strengths", "weaknesses", "objections_encountered", "rapport_building_moments", "information_gathered", "qualification_questions", "closing_attempts", "payment_discussion", "best_practices_demonstrated", "missed_opportunities", "critical_moments", "questions_asked", "concerns_expressed", "buying_signals"]:
+                            if isinstance(val, dict) and field in val and isinstance(val[field], list):
+                                cleaned = [clean_bullet(x) for x in val[field] if isinstance(x, str) and not is_redundant_negative(x)]
+                                val[field] = [x for x in cleaned if x]
+            # Also clean top-level coaching_recommendations if present
+            if "coaching_recommendations" in final_analysis and isinstance(final_analysis["coaching_recommendations"], list):
+                for rec in final_analysis["coaching_recommendations"]:
+                    if isinstance(rec, dict) and "recommendation" in rec and isinstance(rec["recommendation"], str):
+                        cleaned = clean_bullet(rec["recommendation"])
+                        if not is_redundant_negative(cleaned):
+                            rec["recommendation"] = cleaned
+            print("[Evaluator] Post-processing for conciseness complete.")
             print("[Evaluator] Evaluation complete.")
             # Enhanced metadata with reference tracking
             metadata = {

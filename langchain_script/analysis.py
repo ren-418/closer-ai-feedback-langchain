@@ -175,7 +175,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         rules_section = (
             f"\nBUSINESS RULES TO CHECK (STRICTLY ENFORCE THESE ONLY,THIS IS VERY IMPORTANT TO CHECK):\n{rules_text}\n\n"
             "For each violation found (based ONLY on the above business rules):\n"
-            "- Note the exact text and context where it appears\n"
+            "- Note the exact text and context where it appears like described \n"
             "- Suggest the correct term to use\n"
             "- Explain why it's a violation and its business impact\n"
             "- Indicate score penalty (see above rules for details)\n"
