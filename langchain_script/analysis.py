@@ -147,6 +147,9 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         "- Best Practices/Missed Opportunities:\n"
         "  ❌ Do NOT write: 'The closer effectively built rapport with the lead by engaging in casual conversation about their locations and weather conditions'\n"
         "  ✅ Instead, write: 'Built rapport with the lead by engaging in casual conversation about their locations and weather conditions'\n"
+        "- Objections/Negatives:\n"
+        "  ❌ Do NOT write: 'No objections in this chunk.'\n"
+        "  ✅ Instead, omit the bullet or focus on what was discussed, e.g., 'Maintained engagement by asking about the lead’s goals.'\n"
         "\n"
     )
 
