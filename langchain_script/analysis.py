@@ -969,7 +969,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         # Add the violation instance (simple fields only)
         violations_by_rule[rule_key]['items'].append({
             'violation_text': violation.get('violation_text', ''),
-            'example': violation.get('context', ''),
+            'explanation': violation.get('explanation', ''),
             'recommendation': violation.get('recommendation', '')
         })
         # Update counts
