@@ -1010,6 +1010,7 @@ def clean_final_report_with_ai(final_report: dict) -> dict:
     """
     Use the LLM to deduplicate and resolve contradictions in the final report,
     keeping all details and the exact JSON structure.
+    Dynamically set max_tokens for the LLM call based on prompt length and context window.
     """
     openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
@@ -1027,11 +1028,15 @@ def clean_final_report_with_ai(final_report: dict) -> dict:
         f"{json.dumps(final_report, ensure_ascii=False, indent=2)}"
     )
 
+    prompt_tokens = calculate_prompt_tokens(prompt)
+    allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
+    allowed_max_tokens = max(256, allowed_max_tokens)
+
     response = openai_client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
-        max_tokens=4000
+        max_tokens=allowed_max_tokens
     )
     cleaned_report = json.loads(response.choices[0].message.content)
     return cleaned_report
