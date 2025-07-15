@@ -986,7 +986,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     for violation in all_violations:
         violation_items.append({
             "violation_text": violation.get("violation_text", ""),
-            "example": violation.get("context", ""),
+            "explanation": violation.get("explanation", ""),
             "recommendation": violation.get("recommendation", "")
         })
         penalty = violation.get("score_impact") or violation.get("score_penalty") or -2
