@@ -111,41 +111,7 @@ def embed_new_transcript(transcript_text: str) -> List[Dict]:
 
 def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], context_prev: str = '', context_next: str = '', business_rules: List[Dict] = None) -> str:
     # STYLE REQUIREMENTS at the very top
-    style_requirements = (
-        "STYLE REQUIREMENTS (IMPORTANT):\n"
-        "Apply these style requirements and examples to ALL sections and items in your response, including strengths, weaknesses, information gathered, reference comparisons, coaching recommendations, and summaries.\n"
-        "- Use professional, concise business language.\n"
-        "- Do NOT use phrases like 'the closer', 'the lead', 'in this chunk', 'in this segment', or similar chunk-specific references.\n"
-        "- Do NOT mention negatives such as 'no objections in this chunk', 'no issues', 'none', or 'nothing to note'.\n"
-        "- Write feedback so it can be aggregated into a final report without repetition or boilerplate.\n"
-        "- Always include all specific, actionable, and transcript-based details.\n"
-        "- Reference exact lines or phrases from the transcript for every point, but phrase your feedback naturally and professionally.\n"
-        "- Avoid repetition and boilerplate, but do NOT omit important information or become vague.\n"
-        "- Write as if summarizing the entire call, but keep all relevant specifics.\n"
-        "- If you violate these style rules, your output will be rejected.\n"
-        "\n"
-        "EXAMPLES (apply to ALL sections/items):\n"
-        "- Do NOT mention or refer to subject persons (the closer, the lead) in any sentence.\n"
-        "  ❌ BAD: 'The closer built rapport by asking about the lead’s goals.'\n"
-        "  ✅ GOOD: 'Built rapport by asking about goals and sharing personal stories.'\n"
-        "- Do NOT use phrases like 'This is similar to successful examples...' or 'In successful examples...'; focus only on the answer, not additional context.\n"
-        "  ❌ BAD: 'This is similar to successful examples where the closer uses casual conversation to build rapport.'\n"
-        "  ❌ BAD: 'In successful examples, the closer would address this concern by offering solutions.'\n"
-        "  ✅ GOOD: 'Rapport was built at the start of the call through discussion of shared interests.'\n"
-        "  ✅ GOOD: 'Missed opportunity to address product sourcing concerns; could have provided strategies such as leveraging Amazon’s marketplace.'\n"
-        "- Do NOT mention 'chunk' or refer to chunk/segment boundaries in any answer.\n"
-        "  ❌ BAD: 'No objections were raised in this chunk.'\n"
-        "  ❌ BAD: 'Built rapport in this segment.'\n"
-        "  ✅ GOOD: 'Handled payment objection by offering alternative solutions.'\n"
-        "- If there is nothing substantive to mention, do NOT provide negative or filler statements; omit the item or leave the section empty.\n"
-        "  ❌ BAD: 'No objections in this chunk.'\n"
-        "  ❌ BAD: 'No closing attempts were made.'\n"
-        "  ✅ GOOD: (If nothing substantive, leave the section empty or omit it entirely.)\n"
-        "- All answers should be direct, specific, and actionable, with no meta-commentary or references to roles, examples, or chunk boundaries.\n"
-        "  ❌ BAD: 'The closer should have asked more discovery questions, as seen in successful calls.'\n"
-        "  ✅ GOOD: 'Should have asked about previous business attempts to uncover challenges and tailor the solution.'\n"
-        "\n"
-    )
+    
 
     # BUSINESS RULES section highlighted
     if business_rules and len(business_rules) > 0:
@@ -168,7 +134,6 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
 
     # Base prompt structure (examples updated to avoid 'the closer', 'the lead', etc.)
     base_prompt = (
-        style_requirements +
         "You are an expert sales call evaluator with 15+ years of experience in sales training and coaching.\n"
         "Analyze this sales call chunk by comparing it to reference examples from successful calls.\n\n"
         "IMPORTANT: In the transcript, the 'lead' is the prospect/customer, and the 'closer' is the sales representative. Only extract questions that are asked by the lead. Do NOT include any questions asked by the closer.\n"
@@ -371,8 +336,7 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
 
     # Final reminder at the end
     final_reminder = (
-        "\nREMINDER: If you use any chunk-specific, segment-specific, or role-specific boilerplate, or if you omit actionable details, your output will be rejected.\n"
-        "Follow ALL instructions above, including PROFESSIONAL ANALYSIS REQUIREMENTS, style requirements, CRITICAL INSTRUCTION, business rules, scoring guidelines, and required JSON format.\n"
+        "\nREMINDER: Follow ALL instructions above, including PROFESSIONAL ANALYSIS REQUIREMENTS, CRITICAL INSTRUCTION, business rules, scoring guidelines, and required JSON format.\n"
     )
 
     # Build final prompt
@@ -1041,6 +1005,36 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
         }
     
     return final_report
+
+def clean_final_report_with_ai(final_report: dict) -> dict:
+    """
+    Use the LLM to deduplicate and resolve contradictions in the final report,
+    keeping all details and the exact JSON structure.
+    """
+    openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+    prompt = (
+        "You are a professional sales report editor. "
+        "You will receive a JSON object representing a detailed sales call analysis report. "
+        "Your task is to:\n"
+        "- Remove duplicate or near-duplicate items within each list/section.\n"
+        "- If there are direct contradictions (e.g., two items say opposite things), clarify or merge them, but do not delete both unless one is clearly wrong.\n"
+        "- Do NOT summarize, generalize, or omit important details. Keep all substantive points even example.\n"
+        "- Do NOT change the JSON structure, keys, or field names. Only edit the content inside the lists/fields.\n"
+        "- Do NOT add new sections or remove existing ones.\n"
+        "- Return the cleaned report in the exact same JSON structure as the input.\n"
+        "Here is the report JSON:\n"
+        f"{json.dumps(final_report, ensure_ascii=False, indent=2)}"
+    )
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=4000
+    )
+    cleaned_report = json.loads(response.choices[0].message.content)
+    return cleaned_report
 
 def format_rules(business_rules: List[Dict]) -> str:
     """Format business rules as a compact numbered list, including violation_text and correct_text."""

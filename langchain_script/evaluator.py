@@ -6,7 +6,7 @@ from openai import OpenAI
 import os
 from datetime import datetime
 import re
-from .analysis import embed_new_transcript, analyze_chunk_with_rag, aggregate_chunk_analyses
+from .analysis import embed_new_transcript, analyze_chunk_with_rag, aggregate_chunk_analyses, clean_final_report_with_ai
 from embeddings.pinecone_store import PineconeManager
 from database.database_manager import DatabaseManager
 
@@ -158,6 +158,9 @@ class SalesCallEvaluator:
             print("[Evaluator] Aggregating chunk analyses into final report...")
             final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses], business_rules=business_rules)
 
+            # Clean the final report with AI
+            final_analysis = clean_final_report_with_ai(final_analysis)
+
             # --- POST-PROCESSING FOR CLIENT CONCISENESS ---
             # (Removed: clean_bullet, is_redundant_negative, and related cleaning logic)
             print("[Evaluator] Evaluation complete.")
@@ -210,6 +213,8 @@ class SalesCallEvaluator:
                         'analysis': analysis
                     })
                 final_analysis = aggregate_chunk_analyses([c['analysis'] for c in chunk_analyses], business_rules=business_rules)
+                # Clean the final report with AI
+                final_analysis = clean_final_report_with_ai(final_analysis)
                 metadata = {
                     'total_chunks': total_chunks,
                     'references_per_chunk': top_k,
