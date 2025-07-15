@@ -137,14 +137,16 @@ def build_chunk_analysis_prompt(chunk_text: str, reference_texts: List[Dict], co
         "  ❌ BAD: 'No objections were raised in this chunk.'\n"
         "  ❌ BAD: 'Built rapport in this segment.'\n"
         "  ✅ GOOD: 'Handled payment objection by offering alternative solutions.'\n"
-        "- If there is nothing substantive to mention, do NOT provide negative or filler statements; omit the item or leave the section empty.\n"
-        "  ❌ BAD: 'No objections in this chunk.'\n"
-        "  ❌ BAD: 'No closing attempts were made.'\n"
-        "  ✅ GOOD: (If nothing substantive, leave the section empty or omit it entirely.)\n"
+        "- Do NOT provide negative or filler statements when nothing substantive occurred (e.g., no objections, no closing attempts, nothing to assess).\n"
+        "  ❌ BAD: 'No objections were raised during this part of the conversation.'\n"
+        "  ❌ BAD: 'No objections were encountered in this segment, so the ability to handle objections could not be assessed.'\n"
+        "  ❌ BAD: 'No objections were raised, so the closer's ability to handle objections could not be evaluated.'\n"
+        "  ✅ GOOD: (If there is nothing substantive, omit the item or leave the section empty.)\n"
         "- All answers should be direct, specific, and actionable, with no meta-commentary or references to roles, examples, or chunk boundaries.\n"
         "  ❌ BAD: 'The closer should have asked more discovery questions, as seen in successful calls.'\n"
         "  ✅ GOOD: 'Should have asked about previous business attempts to uncover challenges and tailor the solution.'\n"
         "\n"
+        "- FINAL REMINDER: For all list-type sections (such as strengths, weaknesses, information gathered, etc.), if there is nothing substantive to mention, return an empty list ([]). Do NOT include any filler or negative statement such as 'No objections were raised...' or similar. The frontend will display the list directly.\n"
     )
 
     # BUSINESS RULES section highlighted
