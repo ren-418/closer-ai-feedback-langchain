@@ -1006,39 +1006,89 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
     
     return final_report
 
-def clean_final_report_with_ai(final_report: dict) -> dict:
+def clean_list_with_ai(section_name: str, items: list) -> list:
     """
-    Use the LLM to deduplicate and resolve contradictions in the final report,
-    keeping all details and the exact JSON structure.
-    Dynamically set max_tokens for the LLM call based on prompt length and context window.
+    Use the LLM to deduplicate and resolve contradictions in a single list section, following client feedback.
     """
+    if not items or not isinstance(items, list):
+        return items
     openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-
     prompt = (
-        "You are a professional sales report editor. "
-        "You will receive a JSON object representing a detailed sales call analysis report. "
+        f"You are a professional sales report editor. Here is a list of {section_name} from a sales call analysis report. "
         "Your task is to:\n"
-        "- Remove duplicate or near-duplicate items within each list/section.\n"
+        "- Remove duplicate or near-duplicate items.\n"
         "- If there are direct contradictions (e.g., two items say opposite things), clarify or merge them, but do not delete both unless one is clearly wrong.\n"
-        "- Do NOT summarize, generalize, or omit important details. Keep all substantive points even example.\n"
-        "- Do NOT change the JSON structure, keys, or field names. Only edit the content inside the lists/fields.\n"
-        "- Do NOT add new sections or remove existing ones.\n"
-        "- Return the cleaned report in the exact same JSON structure as the input.\n"
-        "Here is the report JSON:\n"
-        f"{json.dumps(final_report, ensure_ascii=False, indent=2)}"
+        "- Do NOT repeat or include phrases like: 'This is similar to the successful examples...', 'In the successful examples...', 'The closer...', 'The lead...', or 'No objections in this chunk/section/part/segment' or similar negative/filler statements.\n"
+        "- Do NOT summarize, generalize, or omit any details or examples. Do NOT lose any substantive content from chunk analyses.\n"
+        "- Return only the cleaned list as a JSON array, with no extra commentary.\n"
+        f"Here is the list:\n{json.dumps(items, ensure_ascii=False, indent=2)}"
     )
-
     prompt_tokens = calculate_prompt_tokens(prompt)
     allowed_max_tokens = min(MAX_RESPONSE_TOKENS, CONTEXT_WINDOW - prompt_tokens - SAFETY_BUFFER)
     allowed_max_tokens = max(256, allowed_max_tokens)
-
+    print(f"[AI CLEAN] Cleaning section '{section_name}' - prompt tokens: {prompt_tokens}, allowed max_tokens: {allowed_max_tokens}")
     response = openai_client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
         max_tokens=allowed_max_tokens
     )
-    cleaned_report = json.loads(response.choices[0].message.content)
+    cleaned_list = json.loads(response.choices[0].message.content)
+    return cleaned_list
+
+def clean_final_report_with_ai(final_report: dict) -> dict:
+    """
+    Clean each large list section of the final report with the LLM, then reassemble.
+    Output is identical in structure/detail to cleaning the whole report at once, but avoids context window errors.
+    Now includes all substantive lists except 'violations'.
+    """
+    # Deep copy to avoid mutating input
+    import copy
+    cleaned_report = copy.deepcopy(final_report)
+    # Define which sections/lists to clean (do NOT include 'violations')
+    list_paths = [
+        # Executive summary
+        (['executive_summary', 'key_highlights'], 'executive_summary key_highlights'),
+        (['executive_summary', 'critical_areas'], 'executive_summary critical_areas'),
+        # Detailed analysis: objection_handling
+        (['detailed_analysis', 'objection_handling', 'strengths'], 'objection_handling strengths'),
+        (['detailed_analysis', 'objection_handling', 'weaknesses'], 'objection_handling weaknesses'),
+        (['detailed_analysis', 'objection_handling', 'objections_encountered'], 'objection_handling objections_encountered'),
+        (['detailed_analysis', 'objection_handling', 'handling_techniques_used'], 'objection_handling handling_techniques_used'),
+        # Detailed analysis: rapport_building
+        (['detailed_analysis', 'rapport_building', 'strengths'], 'rapport_building strengths'),
+        (['detailed_analysis', 'rapport_building', 'weaknesses'], 'rapport_building weaknesses'),
+        (['detailed_analysis', 'rapport_building', 'rapport_building_moments'], 'rapport_building moments'),
+        # Detailed analysis: discovery_qualification
+        (['detailed_analysis', 'discovery_qualification', 'strengths'], 'discovery_qualification strengths'),
+        (['detailed_analysis', 'discovery_qualification', 'weaknesses'], 'discovery_qualification weaknesses'),
+        (['detailed_analysis', 'discovery_qualification', 'information_gathered'], 'discovery_qualification information_gathered'),
+        (['detailed_analysis', 'discovery_qualification', 'qualification_questions'], 'discovery_qualification qualification_questions'),
+        # Detailed analysis: closing_effectiveness
+        (['detailed_analysis', 'closing_effectiveness', 'strengths'], 'closing_effectiveness strengths'),
+        (['detailed_analysis', 'closing_effectiveness', 'weaknesses'], 'closing_effectiveness weaknesses'),
+        (['detailed_analysis', 'closing_effectiveness', 'closing_attempts'], 'closing_effectiveness closing_attempts'),
+        (['detailed_analysis', 'closing_effectiveness', 'payment_discussion'], 'closing_effectiveness payment_discussion'),
+        # Coaching recommendations
+        (['coaching_recommendations'], 'coaching_recommendations'),
+        # Reference comparisons
+        (['reference_comparisons', 'similarities_to_successful_calls'], 'similarities_to_successful_calls'),
+        (['reference_comparisons', 'differences_from_successful_calls'], 'differences_from_successful_calls'),
+        (['reference_comparisons', 'best_practices_demonstrated'], 'best_practices_demonstrated'),
+        (['reference_comparisons', 'missed_opportunities'], 'missed_opportunities'),
+        # Lead interaction summary
+        (['lead_interaction_summary', 'questions_asked'], 'lead_interaction_summary questions_asked'),
+        (['lead_interaction_summary', 'buying_signals'], 'lead_interaction_summary buying_signals'),
+        (['lead_interaction_summary', 'concerns_expressed'], 'lead_interaction_summary concerns_expressed'),
+    ]
+    for path, section_name in list_paths:
+        # Traverse to the list
+        d = cleaned_report
+        for key in path[:-1]:
+            d = d.get(key, {})
+        last_key = path[-1]
+        if last_key in d and isinstance(d[last_key], list) and d[last_key]:
+            d[last_key] = clean_list_with_ai(section_name, d[last_key])
     return cleaned_report
 
 def format_rules(business_rules: List[Dict]) -> str:
