@@ -659,7 +659,7 @@ def aggregate_chunk_analyses(chunk_analyses: List[Dict], business_rules: List[Di
             detailed_analysis[category]['score'] = round(detailed_analysis[category]['score'] / total_chunks_with_scores, 1)
 
     # Subtract business rule violation penalty from overall_score
-    overall_score_penalized = overall_score - total_score_penalty
+    overall_score_penalized = overall_score + total_score_penalty
     overall_score_penalized = max(0, overall_score_penalized)  # Clamp to 0 minimum
 
     # Use penalized score for letter grade
